@@ -10,6 +10,7 @@ CUDA Flux is a profiler for GPU applications which reports the basic block execu
   ```
   cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=/opt/llvm-master -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_ENABLE_DOXYGEN=OFF -DLLVM_BUILD_DOCS=OFF -GNinja ../llvm
   ```
+* re2c lexer generator - http://re2c.org/ (make sure to check your package manager first)
 * CUDA SDK 8.0  
   Newer version are currently not supported due to different kernel launch implementation.
 * Python (python3 preferred) with the yaml package installed
