@@ -105,7 +105,7 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   // Call modified kernel
 
   // Get Kernel Calls and Kernels
-  std::vector<std::pair<CallInst *, CallInst *> > kernelLaunch;
+  std::vector<std::pair<CallBase *, CallBase *> > kernelLaunch;
   mekong::getKernelLaunches(M, kernelLaunch);
 
   // For Kernel Call
@@ -184,7 +184,7 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
     // Let the kernel know which profiling mode is used
     additionalArgs.push_back(profilingMode);
 
-   CallInst *cloneLaunchCall =
+   CallBase *cloneLaunchCall =
         mekong::replaceKernelCall(M, launch.first, launch.second, clonedKernelWrapper, additionalArgs);
 
     // Make sure to insert after the launch call

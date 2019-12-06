@@ -13,12 +13,12 @@ using namespace llvm;
 using namespace std;
 
 bool launchFinder(BasicBlock *block, void *launchCallPtr) {
-  CallInst **ptr = (CallInst **)launchCallPtr;
+  CallBase **ptr = (CallBase **)launchCallPtr;
 
   for (Instruction &inst : *block) {
 
     // If inst is a call inst look for cuda funktions
-    if (CallInst *ci = dyn_cast_or_null<CallInst>(&inst)) {
+    if (CallBase *ci = dyn_cast_or_null<CallBase>(&inst)) {
       string name = ci->getCalledFunction()->getName();
       if (name == "cudaSetupArgument")
         continue;
@@ -31,29 +31,29 @@ bool launchFinder(BasicBlock *block, void *launchCallPtr) {
 
         Function *cudaLaunch = block->getParent()->getParent()->getFunction("cudaLaunch");
         for (Value *launchCallVal : cudaLaunch->users()) {
-          if( CallInst *launchCallInst = dyn_cast_or_null<CallInst>(launchCallVal)) {
-            if (launchCallInst->getFunction() == ci->getCalledFunction()) {
-              *ptr = launchCallInst;
+          if( CallBase *launchCallBase = dyn_cast_or_null<CallBase>(launchCallVal)) {
+            if (launchCallBase->getFunction() == ci->getCalledFunction()) {
+              *ptr = launchCallBase;
               return true;
             }
           }
         } // end for (Value* launchCallVal : cudaLaunch->users())
 
       } // end else
-    } // end if (CallInst *ci = dync_cast_or_null<CallInst>(&inst))
+    } // end if (CallBase *ci = dync_cast_or_null<CallBase>(&inst))
     if (InvokeInst *invi = dyn_cast_or_null<InvokeInst>(&inst)) {
       // Check if cudaLaunch is called from the possible kernel wrapper function
       Function *cudaLaunch = block->getParent()->getParent()->getFunction("cudaLaunch");
       for (Value *launchCallVal : cudaLaunch->users()) {
-        if( CallInst *launchCallInst = dyn_cast_or_null<CallInst>(launchCallVal)) {
-          if (launchCallInst->getFunction() == invi->getCalledFunction()) {
-            *ptr = launchCallInst;
+        if( CallBase *launchCallBase = dyn_cast_or_null<CallBase>(launchCallVal)) {
+          if (launchCallBase->getFunction() == invi->getCalledFunction()) {
+            *ptr = launchCallBase;
             return true;
           }
         }
       } // end for (Value* launchCallVal : cudaLaunch->users())
 
-    } // end if (CallInst *ci = dync_cast_or_null<CallInst>(&inst))
+    } // end if (CallBase *ci = dync_cast_or_null<CallBase>(&inst))
 
   } // end for (Insturction &inst : *block)
 
@@ -66,7 +66,7 @@ namespace mekong {
 ///                           Analysis Functions
 ///===------------------------------------------------------------------===//
 
-void getKernelLaunches(llvm::Module &m, std::vector<std::pair<llvm::CallInst *, llvm::CallInst *>> &kernelLaunch) {
+void getKernelLaunches(llvm::Module &m, std::vector<std::pair<llvm::CallBase *, llvm::CallBase *>> &kernelLaunch) {
   Function *cudaConfigureCall = m.getFunction("cudaConfigureCall");
   Function *cudaLaunch = m.getFunction("cudaLaunch");
 
@@ -80,15 +80,17 @@ void getKernelLaunches(llvm::Module &m, std::vector<std::pair<llvm::CallInst *, 
   assert(cudaLaunch != nullptr && "function could not be found in module!");
 
   for (Value *confCallVal : cudaConfigureCall->users()) {
-    // CallInst *confCallInst = dyn_cast_or_null<CallInst>(confCallVal);
-    CallInst *confCallInst = dyn_cast_or_null<CallInst>(confCallVal);
+    // CallBase *confCallBase = dyn_cast_or_null<CallBase>(confCallVal);
+    CallBase *confCallBase = dyn_cast_or_null<CallBase>(confCallVal);
     InvokeInst *confInvokeInst = dyn_cast_or_null<InvokeInst>(confCallVal);
-    assert ( (confCallInst != nullptr or confInvokeInst != nullptr) && "Could not determine inst. type of cudaConfigure call");
+    assert ( (confCallBase != nullptr or confInvokeInst != nullptr) && "Could not determine inst. type of cudaConfigure call");
     BasicBlock *parent = nullptr;
-    if ( confCallInst == nullptr and confInvokeInst != nullptr) {
+    if ( confInvokeInst != nullptr) {
       parent = confInvokeInst->getNormalDest();
+      errs() << "Invoke\n";
     } else {
-      parent = confCallInst->getParent();
+      parent = confCallBase->getParent();
+      errs() << "CallBase\n";
     }
 
     // Assumption: There are exactly two successors and one is the one if cudaConfigureCall succeeds
@@ -100,43 +102,55 @@ void getKernelLaunches(llvm::Module &m, std::vector<std::pair<llvm::CallInst *, 
       swap(next, failBlock);
     }
 
-    CallInst *launchCall = nullptr;
+    CallBase *launchCall = nullptr;
     visitNodes(next, failBlock, &launchCall, launchFinder);
     assert( launchCall != nullptr && "Could not find cudaLaunch");
-    assert( confCallInst != nullptr && "Fuck");
-    kernelLaunch.push_back({confCallInst, launchCall});
+    assert( confCallBase != nullptr && "Fuck");
+    kernelLaunch.push_back({confCallBase, launchCall});
 
   }
 }
 
 /// Returns arguments for pre CUDA 7.0 kernel launches
 /// Assumes that the kernel-wrapper was not inlined!
-void getLaunchArguments(llvm::Module &m, llvm::CallInst* configureCall, llvm::CallInst* launchCall, std::vector<llvm::Value*> &args) {
+void getLaunchArguments(llvm::Module &m, llvm::CallBase* configureCall, llvm::CallBase* launchCall, std::vector<llvm::Value*> &args) {
   // Check KernelWrapper Function was inlined
   assert (configureCall->getFunction() != launchCall->getFunction() && "Kernel wrapper is inlined. Cannot find kernel arguments!");
 
+  BasicBlock *launchBlock = nullptr;
   BranchInst *bi = dyn_cast_or_null<BranchInst>(configureCall->getParent()->getTerminator());
-  assert(bi != nullptr && bi->getNumSuccessors() == 2);
-  BasicBlock *launchBlock = bi->getSuccessor(0);
-  if (launchBlock->getName().find("kcall.configok") == StringRef::npos)
-    launchBlock = bi->getSuccessor(1);
+  if (bi != nullptr) {
+  	assert(bi != nullptr && bi->getNumSuccessors() == 2);
+  	launchBlock = bi->getSuccessor(0);
+	  if (launchBlock->getName().find("kcall.configok") == StringRef::npos)
+	    launchBlock = bi->getSuccessor(1);
+  } else {
+	  InvokeInst *inv = dyn_cast_or_null<InvokeInst>(configureCall->getParent()->getTerminator());
+	  assert(inv != nullptr);
+	  BasicBlock *dest = inv->getNormalDest();
+          launchBlock = dest->getTerminator()->getSuccessor(0);
+	    if (launchBlock->getName().find("kcall.configok") == StringRef::npos)
+	      launchBlock = dest->getTerminator()->getSuccessor(1);
+  }
+  
+  assert(launchBlock != nullptr);
 
   for (auto &inst : *launchBlock) {
-    CallInst *ci = dyn_cast_or_null<CallInst>(&inst);
+    // Check for Instruction Calling the Kernel launch Wrapper
+    CallBase *ci = dyn_cast_or_null<CallBase>(&inst);
 
-    if (ci == nullptr)
-      continue;
-
-    // Check if the call instruction is calling the kernel wrapper
-    if (ci->getCalledFunction() != launchCall->getFunction())
-      continue;
-
-    for (auto &val : ci->operands()) {
-      // only the arguments are wanted not the function itself
-      if (dyn_cast_or_null<Function>(&val) != nullptr)
-        continue;
-      //val->dump();
-      args.push_back(val);
+    if (ci != nullptr && (ci->getCalledFunction() == launchCall->getFunction())) {
+	    for (auto &val : ci->operands()) {
+	      // only the arguments are wanted not the function itself
+	      if (dyn_cast_or_null<Function>(&val) != nullptr)
+		continue;
+	      // also skip invoke operands which are basicblocks
+	      if (dyn_cast_or_null<BasicBlock>(&val) != nullptr)
+	        continue;
+	      //val->dump();
+	      args.push_back(val);
+	    }
+	    continue;
     }
   }
 }
@@ -148,7 +162,7 @@ llvm::Function* getCudaSynchronizeStream(llvm::Module &m) {
   return dyn_cast<Function>(m.getOrInsertFunction("cudaStreamSynchronize", cudaSyncStream_ft).getCallee());
 }
 
-void getGridConfig(llvm::CallInst *call, llvm::Value *(&arguments)[4]) {
+void getGridConfig(llvm::CallBase *call, llvm::Value *(&arguments)[4]) {
   assert(call->getCalledFunction()->getName() == "cudaLaunchKernel");
   arguments[0] = call->getArgOperand(1);
   arguments[1] = call->getArgOperand(2);
@@ -182,7 +196,7 @@ void registerKernel(llvm::Module &m, const std::string name, llvm::Function *ker
 
     for (auto& bb : *registerGlobals) {
       for (auto &inst : bb) {
-        if (CallInst *ci = dyn_cast_or_null<CallInst>(&inst)) {
+        if (CallBase *ci = dyn_cast_or_null<CallBase>(&inst)) {
           if (ci->getCalledFunction()->getName() == "__cudaRegisterFatBinary") {
             //                                       __cudaRegisterFatBinary
             bin_handle = ci;
@@ -205,7 +219,7 @@ void registerKernel(llvm::Module &m, const std::string name, llvm::Function *ker
                                            wrapper_casted, globalKernelNameString, globalKernelNameString,
                                            builder.getInt32(-1), null, null, null, null, int32null};
 
-  CallInst *errorCode = builder.CreateCall(registerFunction, registerFunctionsArgs);
+  CallBase *errorCode = builder.CreateCall(registerFunction, registerFunctionsArgs);
   // mekong::callPrintf(m, "RegisterFunction: %d\n", errorCode)->insertAfter(errorCode);
 }
 
@@ -364,7 +378,7 @@ Function *createDummyKernelWrapper(llvm::Module &m, const std::string name) {
 
 #if 0
 // TODO
-void replaceKernelCallWrapperLess( llvm::Module &m, llvm::CallInst* configureCall, llvm::CallInst* lanuchCall, Function* kernelHandle, std::vector<Value*> &additionalArguments) {
+void replaceKernelCallWrapperLess( llvm::Module &m, llvm::CallBase* configureCall, llvm::CallBase* lanuchCall, Function* kernelHandle, std::vector<Value*> &additionalArguments) {
   LLVMContext& ctx = m.getContext();
 
   IRBuilder<> builder(ctx);
@@ -396,7 +410,7 @@ void replaceKernelCallWrapperLess( llvm::Module &m, llvm::CallInst* configureCal
   // Get the Arguments of the original Kernel Call
   for( auto &inst : *launchBlock) {
     //inst.dump();
-    CallInst* ci = dyn_cast_or_null<CallInst>(&inst);
+    CallBase* ci = dyn_cast_or_null<CallBase>(&inst);
     BranchInst* ti = dyn_cast_or_null<BranchInst>(&inst);
     if( ci == nullptr ) {
       if (ti == nullptr)
@@ -430,7 +444,7 @@ void replaceKernelCallWrapperLess( llvm::Module &m, llvm::CallInst* configureCal
 
   // call cudaLaunchKernel
 
-  // CallInst* replacementLaunchCall = builder.CreateCall(replacement, configureArgs);
+  // CallBase* replacementLaunchCall = builder.CreateCall(replacement, configureArgs);
 
   builder.CreateBr(launchBlock->getSingleSuccessor());
 
@@ -444,9 +458,9 @@ void replaceKernelCallWrapperLess( llvm::Module &m, llvm::CallInst* configureCal
 }
 #endif
 
-llvm::CallInst* replaceKernelCall(llvm::Module &m,
-                                  llvm::CallInst *configureCall,
-                                  llvm::CallInst *launchCall,
+llvm::CallBase* replaceKernelCall(llvm::Module &m,
+                                  llvm::CallBase *configureCall,
+                                  llvm::CallBase *launchCall,
                                   llvm::Function *replacement,
                                   std::vector<Value *> &additionalArguments) {
     LLVMContext &ctx = m.getContext();
@@ -465,18 +479,36 @@ llvm::CallInst* replaceKernelCall(llvm::Module &m,
     // only the arguments are wanted not the function itself
     if (dyn_cast_or_null<Function>(&val) != nullptr)
       continue;
+    if (dyn_cast_or_null<BasicBlock>(&val) != nullptr)
+      continue;
     //val->dump();
     args.push_back(val);
   }
 
+  BasicBlock *launchBlock = nullptr;
   BranchInst *bi = dyn_cast_or_null<BranchInst>(newBlock->getTerminator());
-  assert(bi != nullptr && bi->getNumSuccessors() == 2);
-  BasicBlock *launchBlock = bi->getSuccessor(0);
-  if (launchBlock->getName().find("kcall.configok") == StringRef::npos)
-    launchBlock = bi->getSuccessor(1);
+  if (bi != nullptr) {
+	  assert(bi->getNumSuccessors() == 2);
+	  launchBlock = bi->getSuccessor(0);
+	  if (launchBlock->getName().find("kcall.configok") == StringRef::npos)
+	    launchBlock = bi->getSuccessor(1);
+  } else {
+	  InvokeInst *inv = dyn_cast_or_null<InvokeInst>(configureCall->getParent()->getTerminator());
+	  assert(inv != nullptr);
+	  BasicBlock *dest = inv->getNormalDest();
+          launchBlock = dest->getTerminator()->getSuccessor(0);
+	    if (launchBlock->getName().find("kcall.configok") == StringRef::npos)
+	      launchBlock = dest->getTerminator()->getSuccessor(1);
+  }
+
+  assert( launchBlock != nullptr);
+  errs() << *launchBlock << "\n";
+
 
   // Save the Successor of launchBlock for later use
   BasicBlock *launchSuccessorBlock = launchBlock->getSingleSuccessor();
+  BasicBlock *preLaunchBlock = launchBlock->getSinglePredecessor();
+  assert (preLaunchBlock != nullptr);
 
   // Get the Kernel Arguments
   getLaunchArguments(m, configureCall, launchCall, args);
@@ -487,27 +519,46 @@ llvm::CallInst* replaceKernelCall(llvm::Module &m,
   // Save instruction that have to be moved later
   std::vector<Instruction *> move;
 
+  CallBase *kernelWrapperCall = nullptr;
+
   for (auto &inst : *launchBlock) {
-    CallInst *ci = dyn_cast_or_null<CallInst>(&inst);
+    CallBase *ci = dyn_cast_or_null<CallBase>(&inst);
     // Check if the functioncall is the call to the old wrapper function
     // and don't add it to the instructions to move in that case
-    if (ci != nullptr and ci->getCalledFunction() == launchCall->getFunction())
+    if (ci != nullptr and ci->getCalledFunction() == launchCall->getFunction()) {
+      kernelWrapperCall = ci;
       continue;
+    }
     BranchInst *ti = dyn_cast_or_null<BranchInst>(&inst);
     if ( ti == nullptr ) {
       move.push_back(&inst);
     }
   }
 
-  CallInst *replacementLaunchCall = builder.CreateCall(replacement, args);
+  errs() << "CUDA FLUX DEBUG:\n";
+  errs() << *launchCall << "\n";
+  CallBase *replacementLaunchCall = builder.CreateCall(replacement, args);
+  InvokeInst* inv = dyn_cast_or_null<InvokeInst>(kernelWrapperCall);
 
-  builder.CreateBr(launchBlock->getSingleSuccessor());
+  if (inv != nullptr) {
+	  builder.CreateBr(inv->getNormalDest());
+  } else {
+	  builder.CreateBr(launchBlock->getSingleSuccessor());
+  }
 
+  errs() << *newBlock << "\n";
   // Cleanup
   for (auto *inst : move) {
     inst->moveBefore(replacementLaunchCall);
   }
   terminator->eraseFromParent();
+  errs() << *newBlock << "\n";
+  errs() << *preLaunchBlock << "\n";
+  if (newBlock != preLaunchBlock) {
+	  for (auto *user : preLaunchBlock->users())
+		  user->dropAllReferences();
+	  preLaunchBlock->eraseFromParent();
+  }
   newBlock->eraseFromParent();
   launchBlock->eraseFromParent();
 
