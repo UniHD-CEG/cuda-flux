@@ -8,6 +8,13 @@
 namespace mekong {
 
 // Analysis Functions
+bool usesNewKernelLaunch(llvm::Module &m);
+void getKernelHandles(llvm::Module &m, std::vector<llvm::Function*> &handles);
+void getKernelLaunchSites(llvm::Function *klFun, std::vector<llvm::CallBase*> &callSites);
+void getKernelArguments(llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value*> &args);
+llvm::CallBase* getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite);
+void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value*> &config);
+
 void getKernelLaunches(llvm::Module &m, std::vector<std::pair<llvm::CallBase *, llvm::CallBase *>> &kernelLaunch);
 void getLaunchArguments(llvm::Module &m, llvm::CallBase* configureCall, llvm::CallBase* launchCall, std::vector<llvm::Value*> &args);
 llvm::Function *getCudaSynchronizeStream(llvm::Module &m);
