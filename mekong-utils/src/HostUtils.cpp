@@ -198,10 +198,8 @@ void getKernelLaunches(
     BasicBlock *parent = nullptr;
     if (confInvokeInst != nullptr) {
       parent = confInvokeInst->getNormalDest();
-      errs() << "Invoke\n";
     } else {
       parent = confCallBase->getParent();
-      errs() << "CallBase\n";
     }
 
     // Assumption: There are exactly two successors and one is the one if
@@ -521,6 +519,92 @@ Function *createDummyKernelWrapper(llvm::Module &m, const std::string name) {
   builder.CreateRet(builder.getInt32(0));
 
   return dummy;
+}
+
+llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
+			 llvm::CallBase *kernelLaunchSite,
+			 llvm::Function *replacementWrapper,
+			 std::vector<llvm::Value*> &additionalArguments) {
+  // gather launch config and kernel arguments
+  std::vector<Value*> config;
+  getKernelLaunchConfig(m, kernelLaunchSite, config);
+  std::vector<Value*> kargs;
+  getKernelArguments(kernelLaunchSite, kargs);
+  CallBase *confCall = getKernelConfigCall(m, kernelLaunchSite);
+  BasicBlock *launchBlock = kernelLaunchSite->getParent();
+
+  LLVMContext &ctx = m.getContext();
+  IRBuilder<> builder(ctx);
+
+  // check if kernelLaunch is invoke inst and insert branch if so
+  InvokeInst *kernelInv = dyn_cast_or_null<InvokeInst>(kernelLaunchSite);
+  if (kernelInv != nullptr) {
+    BasicBlock *branchTarget = kernelInv->getNormalDest();
+    builder.SetInsertPoint(kernelLaunchSite);
+    builder.CreateBr(branchTarget);
+  }
+    
+  // remove old kernel launch
+  kernelLaunchSite->eraseFromParent();
+
+  // remove intermediate blocks between launch and config call
+  BasicBlock *currentBlock = launchBlock->getSinglePredecessor();
+  assert(currentBlock != nullptr);
+  if (confCall->getParent() != currentBlock) {
+    BasicBlock *prev = currentBlock->getSinglePredecessor();
+    Instruction *termInst = prev->getTerminator();
+    InvokeInst *invInst = dyn_cast_or_null<InvokeInst>(termInst);
+    assert( invInst != nullptr);
+    invInst->setNormalDest(launchBlock);
+    currentBlock->eraseFromParent();
+  }
+
+  // Branch to Launch Block Before Configure Call
+  // New code will be inserted before cudaConfigureCall an a new basic block
+  BasicBlock *insertPoint = confCall->getParent();
+  // New Block begins with configure call
+  BasicBlock *newBlock = confCall->getParent()->splitBasicBlock(confCall);
+  // Insert code before in block before configure call
+  Instruction *terminator = insertPoint->getTerminator();
+  builder.SetInsertPoint(terminator);
+  builder.CreateBr(launchBlock);
+  terminator->eraseFromParent();
+
+  // remove configure call
+  for(auto *user : confCall->users()) {
+    user->dropAllReferences();
+  }
+  confCall->eraseFromParent();
+  newBlock->eraseFromParent();
+  
+  // Prepare Launch Call Args
+  std::vector<Value *> args;
+  // append kernel launch config
+  for (auto &val : config) {
+    args.push_back(val);
+  }
+  // append kernel arguments
+  for (auto &val : kargs) {
+    args.push_back(val);
+  }
+  // append additional arguments
+  for (auto &val : additionalArguments) {
+    args.push_back(val);
+  }
+
+
+
+  // cast pointer to stream if types do not match
+  builder.SetInsertPoint(launchBlock->getTerminator());
+  FunctionType *ft = replacementWrapper->getFunctionType();
+  auto params = ft->params();
+  if (args[5]->getType() != params[5]) {
+    args[5] = builder.CreateBitCast(args[5], params[5]);
+  }
+  // insert new kernel launch
+  CallBase *newLaunchCall = builder.CreateCall(replacementWrapper, args);
+  
+  return newLaunchCall;
 }
 
 llvm::CallBase *replaceKernelCall(llvm::Module &m,

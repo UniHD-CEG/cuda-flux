@@ -22,6 +22,10 @@ llvm::Function *getCudaSynchronizeStream(llvm::Module &m);
 // Transformation Functions
 llvm::Value *createCudaGlobalVar(llvm::Module &m, const std::string name, llvm::Type *varType);
 void registerKernel(llvm::Module &m, const std::string name, llvm::Function *kernelWrapper);
+llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
+			 llvm::CallBase *kernelLaunchSite,
+			 llvm::Function *replacementWrapper,
+			 std::vector<llvm::Value*> &additionalArguments);
 llvm::CallBase *replaceKernelCall(llvm::Module &m, llvm::CallBase *configureCall, llvm::CallBase *launchCall,
                                   llvm::Function *replacement, std::vector<llvm::Value *> &additionalArguments);
 llvm::Function *createKernelWrapper(llvm::Module &m, const std::string name, llvm::FunctionType *ft);
