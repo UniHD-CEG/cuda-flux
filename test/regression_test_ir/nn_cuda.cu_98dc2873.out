@@ -1,0 +1,37 @@
+- Function:
+  Name: _Z6euclidP7latLongPfiff
+  BlockCount: 3
+  Blocks: 
+  - entry:
+    - ld.param.u32
+    - mov.u32
+    - mov.u32
+    - mov.u32
+    - mov.u32
+    - mad.lo.s32
+    - mov.u32
+    - mad.lo.s32
+    - setp.ge.s32
+    - bra
+  - if.then:
+    - ld.param.f32
+    - ld.param.f32
+    - ld.param.u64
+    - ld.param.u64
+    - cvta.to.global.u64
+    - cvta.to.global.u64
+    - cvt.s64.s32
+    - shl.b64
+    - add.s64
+    - shl.b64
+    - add.s64
+    - ld.global.f32
+    - sub.rn.f32
+    - ld.global.f32
+    - sub.rn.f32
+    - mul.rn.f32
+    - fma.rn.f32
+    - sqrt.rn.f32
+    - st.global.f32
+  - if.end:
+    - ret

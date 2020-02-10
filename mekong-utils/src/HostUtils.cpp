@@ -9,6 +9,9 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_ostream.h>
 #include "llvm/Support/VersionTuple.h"
+#include "llvm/IR/CFG.h"
+
+#include <queue>
 
 using namespace llvm;
 using namespace std;
@@ -79,6 +82,8 @@ bool usesNewKernelLaunch(llvm::Module &m) {
 // Finds all functions which are being used to register a cuda kernel with the cuda driver
 void getKernelHandles(llvm::Module &m, std::vector<llvm::Function*> &handles) {
   Function *registerFunction = m.getFunction("__cudaRegisterFunction");
+  if (registerFunction == nullptr)
+    return;
   for (auto *user : registerFunction->users()) {
     CallBase *callBase = dyn_cast_or_null<CallBase>(user);
     if (callBase != nullptr) {
@@ -136,6 +141,34 @@ CallBase* getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite)
 
   assert(confFunc != nullptr);
 
+  // BFSearch back to configuration call
+  CallBase *confCall = nullptr;
+  queue<BasicBlock*> q;
+  q.push(kernelLaunchSite->getParent());
+  while(q.empty() == false and confCall == nullptr) {
+    BasicBlock *currentBlock = q.front();
+    q.pop();
+
+    if (currentBlock != kernelLaunchSite->getParent()) {
+    // Search for configure call
+    for (Instruction &inst : *currentBlock) {
+      CallBase *ci = dyn_cast_or_null<CallBase>(&inst);
+      if (ci != nullptr && ci->getCalledFunction() == confFunc) {
+        confCall = ci;
+	break;
+      }
+    }
+    }
+
+    // Add predecessors if call was not found
+    pred_iterator PI = pred_begin(currentBlock), E = pred_end(currentBlock);
+    assert( PI != E or confCall != nullptr && "Could not find kernel configuration call!");
+    for (;PI != E; ++PI) {
+      q.push(*PI);
+    }
+  }
+
+  /*
   CallBase *confCall = nullptr;
   int i = 3;
   BasicBlock *currentBlock = kernelLaunchSite->getParent()->getSinglePredecessor();
@@ -151,8 +184,8 @@ CallBase* getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite)
     assert(i>0 && "backtrack exceeded max number of basic blocks to rewind. Configuration call not found!");
     currentBlock = currentBlock->getSinglePredecessor();
   }
-
-  assert(confCall != nullptr);
+  */
+  assert( confCall != nullptr && "Kernel configuration call not found!");
 
   return confCall;
 }
@@ -545,10 +578,47 @@ llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
   }
     
   // remove old kernel launch
+  // remaining basic block should be eliminated because it can be reached
   kernelLaunchSite->eraseFromParent();
 
-  // remove intermediate blocks between launch and config call
-  BasicBlock *currentBlock = launchBlock->getSinglePredecessor();
+  // find blocks between launchBlock and ConfigureCallBlack
+  queue<BasicBlock*> q;
+  q.push(launchBlock);
+  vector<BasicBlock*> listOfRemoval;
+  while(q.empty() == false) {
+    BasicBlock *currentBlock = q.front();
+    q.pop();
+
+    // Add predecessors if not basic block of configure call
+    pred_iterator PI = pred_begin(currentBlock), E = pred_end(currentBlock);
+    assert( PI != E);// or currentBlock == confCall->getParent());
+    for (;PI != E; ++PI) {
+        if (*PI != confCall->getParent()) { // PI vs currentblock
+	  q.push(*PI);
+	}
+	// Add Block to remove list if not already there
+	bool alreadyInList = false;
+	for(auto block : listOfRemoval) {
+	  if (block == currentBlock) {
+	    alreadyInList = true;
+	    break;
+	  }
+	}
+	if (not alreadyInList)
+          listOfRemoval.push_back(currentBlock);
+    }
+  }
+
+  // Erase blocks
+  for (int i=listOfRemoval.size()-1; i>=0; --i) {
+	  listOfRemoval[i]->eraseFromParent();
+  }
+  /*
+  for(auto block : listOfRemoval) {
+    block->eraseFromParent();
+  }*/
+
+  /*
   assert(currentBlock != nullptr);
   if (confCall->getParent() != currentBlock) {
     BasicBlock *prev = currentBlock->getSinglePredecessor();
@@ -558,6 +628,7 @@ llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
     invInst->setNormalDest(launchBlock);
     currentBlock->eraseFromParent();
   }
+  */
 
   // Branch to Launch Block Before Configure Call
   // New code will be inserted before cudaConfigureCall an a new basic block

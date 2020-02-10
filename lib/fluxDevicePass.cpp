@@ -41,17 +41,8 @@ std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
   errs() << "CUDA Flux: Module prefix: " << prefix << "\n";
   
   // Write IR to file
-  // getFileStream
-  std::error_code EC;
   std::string byteCodeFile = prefix + ".bc";
-  { // Seperate name space to prevent usage of file later in code
-    // also flushes input of file to disk - very important!
-    raw_fd_ostream file(byteCodeFile, EC, sys::fs::F_Text);
-    // WriteBitcodeToFile()
-    assert (!EC);
-    llvm::WriteBitcodeToFile(M, file);
-    file.flush();
-  }
+  mekong::dumpModuleToFile(M, byteCodeFile);
 
   // call llc to get ptx code
   // get target processor and target features

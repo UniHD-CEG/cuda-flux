@@ -84,7 +84,11 @@ void __attribute__((weak)) serializeBBCounter(uint64_t *d_blockList, size_t len,
   for (int block_ID = 0; block_ID < len/n_banks; ++block_ID) {
     uint64_t sum = 0;
     for (int bank =0; bank< n_banks; ++bank) {
-      sum += h_blockList[block_ID * n_banks + bank];
+      if ( __builtin_add_overflow   ( sum, h_blockList[block_ID * n_banks + bank], &sum)) {
+	// todo
+	cerr << "CUDA FLUX: OVERFLOW!\n";
+      }
+      // sum += h_blockList[block_ID * n_banks + bank];
     }
 
     // Store result to column for bank zero

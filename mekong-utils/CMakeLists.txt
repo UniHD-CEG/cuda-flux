@@ -28,11 +28,7 @@ add_dependencies( mekong-utils ptx_parser)
 #target_link_libraries( mekong-utils PUBLIC LLVMTransformUtils)
 target_include_directories(mekong-utils PUBLIC inc)
 
-# id rather use compile features but compiler detection with custom clang seems to be broken
-#target_compile_options( mekong-utils PRIVATE "-std=c++11")
-#target_compile_features( mekong-utils PRIVATE cxx_auto_type)
-target_compile_options( mekong-utils PUBLIC "-fno-rtti")
-target_compile_options( mekong-utils PUBLIC "-fPIC")
+set_target_properties(mekong-utils PROPERTIES COMPILE_FLAGS "-fno-rtti" POSITION_INDEPENDENT_CODE ON)
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.

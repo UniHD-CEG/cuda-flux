@@ -4,4 +4,5 @@ build/*
 inc/deviceRuntime.h
 inc/hostRuntime.h
 mekong-utils/inc/ptx_parser.h
+*.swp
 

@@ -8,6 +8,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include <llvm/Transforms/Utils/Cloning.h>
 #include "llvm/Support/VersionTuple.h"
 
@@ -26,7 +27,7 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   errs() << "CUDA Flux: instrumenting host code...\n";
 
   errs() << "CUDA Flux: CUDA Version ";
-  errs() << M.getSDKVersion() << "\n";
+  errs() << M.getSDKVersion().getMajor() << "." << M.getSDKVersion().getMinor().getValue() << "\n";
   //errs() << "CUDA Flux: uses new CUDA Launch: " << mekong::usesNewKernelLaunch(M) << "\n";
 
   // Test Code

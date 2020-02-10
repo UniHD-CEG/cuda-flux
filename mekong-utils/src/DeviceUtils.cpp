@@ -80,7 +80,8 @@ namespace mekong {
     gv = new GlobalVariable(m, type, false, GlobalValue::ExternalLinkage,
                             nullptr, name, nullptr, GlobalVariable::NotThreadLocal,
                             1, true);
-    gv->setAlignment(4);
+    //gv->setAlignment(4);
+    gv->setAlignment(MaybeAlign(4));
   }
 
   void loadGlobalVar(Function *kernel, GlobalVariable *gv, Value *&val) {
