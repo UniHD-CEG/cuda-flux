@@ -4,12 +4,12 @@
 // instead of:
 //#include <llvm/IR/TypeBuilder.h>
 // adapt with llvm version?
+#include "llvm/IR/CFG.h"
+#include "llvm/Support/VersionTuple.h"
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_ostream.h>
-#include "llvm/Support/VersionTuple.h"
-#include "llvm/IR/CFG.h"
 
 #include <queue>
 
@@ -76,11 +76,12 @@ namespace mekong {
 ///===------------------------------------------------------------------===//
 
 bool usesNewKernelLaunch(llvm::Module &m) {
-  return m.getSDKVersion() >= VersionTuple(9,2);
+  return m.getSDKVersion() >= VersionTuple(9, 2);
 }
 
-// Finds all functions which are being used to register a cuda kernel with the cuda driver
-void getKernelHandles(llvm::Module &m, std::vector<llvm::Function*> &handles) {
+// Finds all functions which are being used to register a cuda kernel with the
+// cuda driver
+void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles) {
   Function *registerFunction = m.getFunction("__cudaRegisterFunction");
   if (registerFunction == nullptr)
     return;
@@ -89,8 +90,9 @@ void getKernelHandles(llvm::Module &m, std::vector<llvm::Function*> &handles) {
     if (callBase != nullptr) {
       Value *val = (callBase->getArgOperand(1)->stripPointerCastsAndAliases());
       // 2nd argument is the function pointer which acts as handle
-      // strip all casts etc to get the function itself and not an intermediate value
-      Function* handle = dyn_cast_or_null<Function>(val);
+      // strip all casts etc to get the function itself and not an intermediate
+      // value
+      Function *handle = dyn_cast_or_null<Function>(val);
       if (handle != nullptr) {
         handles.push_back(handle);
       }
@@ -101,8 +103,10 @@ void getKernelHandles(llvm::Module &m, std::vector<llvm::Function*> &handles) {
 
 // Finds the instructions that call the kernel launch wrapper function (klFun)
 // in this function cudaLaunch or cudaLaunchKernel will be called
-// this function will not return the call sites if the wrapper function is already inlined
-void getKernelLaunchSites(llvm::Function *klFun, std::vector<llvm::CallBase*> &callSites) {
+// this function will not return the call sites if the wrapper function is
+// already inlined
+void getKernelLaunchSites(llvm::Function *klFun,
+                          std::vector<llvm::CallBase *> &callSites) {
   for (auto *user : klFun->users()) {
     CallBase *callBase = dyn_cast_or_null<CallBase>(user);
     // user must be callbase and call the kernel launch function
@@ -113,12 +117,12 @@ void getKernelLaunchSites(llvm::Function *klFun, std::vector<llvm::CallBase*> &c
   return;
 }
 
-
-void getKernelArguments(llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value*> &args) {
+void getKernelArguments(llvm::CallBase *kernelLaunchSite,
+                        std::vector<llvm::Value *> &args) {
   for (auto &op : kernelLaunchSite->operands()) {
     // Make sure not to inclide the kernel launch wrapper
     Function *fun = dyn_cast_or_null<Function>(&op);
-    if ( fun != nullptr and fun == kernelLaunchSite->getCalledFunction() )
+    if (fun != nullptr and fun == kernelLaunchSite->getCalledFunction())
       continue;
     // also skip invoke operands which are basicblocks
     if (dyn_cast_or_null<BasicBlock>(&op) != nullptr)
@@ -127,12 +131,13 @@ void getKernelArguments(llvm::CallBase *kernelLaunchSite, std::vector<llvm::Valu
     args.push_back(op);
   }
   // get arguments regarding launch configuration
-  return;  
+  return;
 }
 
-CallBase* getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite) {
+CallBase *getKernelConfigCall(llvm::Module &m,
+                              llvm::CallBase *kernelLaunchSite) {
   Function *confFunc = nullptr;
-  
+
   if (usesNewKernelLaunch(m)) {
     confFunc = m.getFunction("__cudaPushCallConfiguration");
   } else {
@@ -143,27 +148,28 @@ CallBase* getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite)
 
   // BFSearch back to configuration call
   CallBase *confCall = nullptr;
-  queue<BasicBlock*> q;
+  queue<BasicBlock *> q;
   q.push(kernelLaunchSite->getParent());
-  while(q.empty() == false and confCall == nullptr) {
+  while (q.empty() == false and confCall == nullptr) {
     BasicBlock *currentBlock = q.front();
     q.pop();
 
     if (currentBlock != kernelLaunchSite->getParent()) {
-    // Search for configure call
-    for (Instruction &inst : *currentBlock) {
-      CallBase *ci = dyn_cast_or_null<CallBase>(&inst);
-      if (ci != nullptr && ci->getCalledFunction() == confFunc) {
-        confCall = ci;
-	break;
+      // Search for configure call
+      for (Instruction &inst : *currentBlock) {
+        CallBase *ci = dyn_cast_or_null<CallBase>(&inst);
+        if (ci != nullptr && ci->getCalledFunction() == confFunc) {
+          confCall = ci;
+          break;
+        }
       }
-    }
     }
 
     // Add predecessors if call was not found
     pred_iterator PI = pred_begin(currentBlock), E = pred_end(currentBlock);
-    assert( PI != E or confCall != nullptr && "Could not find kernel configuration call!");
-    for (;PI != E; ++PI) {
+    assert(PI != E or
+           confCall != nullptr && "Could not find kernel configuration call!");
+    for (; PI != E; ++PI) {
       q.push(*PI);
     }
   }
@@ -171,28 +177,28 @@ CallBase* getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite)
   /*
   CallBase *confCall = nullptr;
   int i = 3;
-  BasicBlock *currentBlock = kernelLaunchSite->getParent()->getSinglePredecessor();
-  while (confCall == nullptr) {
-    assert(currentBlock != nullptr);
-    for (Instruction &inst : *currentBlock) {
-      CallBase *ci = dyn_cast_or_null<CallBase>(&inst);
-      if (ci != nullptr && ci->getCalledFunction() == confFunc) {
-        confCall = ci;
+  BasicBlock *currentBlock =
+  kernelLaunchSite->getParent()->getSinglePredecessor(); while (confCall ==
+  nullptr) { assert(currentBlock != nullptr); for (Instruction &inst :
+  *currentBlock) { CallBase *ci = dyn_cast_or_null<CallBase>(&inst); if (ci !=
+  nullptr && ci->getCalledFunction() == confFunc) { confCall = ci;
       }
     }
     --i;
-    assert(i>0 && "backtrack exceeded max number of basic blocks to rewind. Configuration call not found!");
-    currentBlock = currentBlock->getSinglePredecessor();
+    assert(i>0 && "backtrack exceeded max number of basic blocks to rewind.
+  Configuration call not found!"); currentBlock =
+  currentBlock->getSinglePredecessor();
   }
   */
-  assert( confCall != nullptr && "Kernel configuration call not found!");
+  assert(confCall != nullptr && "Kernel configuration call not found!");
 
   return confCall;
 }
 
-void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value*> &config) {
+void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
+                           std::vector<llvm::Value *> &config) {
   CallBase *confCall = getKernelConfigCall(m, kernelLaunchSite);
-  
+
   for (auto &val : confCall->operands()) {
     // only the arguments are wanted not the function itself
     if (dyn_cast_or_null<Function>(&val) != nullptr)
@@ -554,14 +560,15 @@ Function *createDummyKernelWrapper(llvm::Module &m, const std::string name) {
   return dummy;
 }
 
-llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
-			 llvm::CallBase *kernelLaunchSite,
-			 llvm::Function *replacementWrapper,
-			 std::vector<llvm::Value*> &additionalArguments) {
+llvm::CallBase *
+replaceKernelLaunch(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
+                    llvm::Function *replacementWrapper,
+                    std::vector<llvm::Value *> &additionalArguments) {
+
   // gather launch config and kernel arguments
-  std::vector<Value*> config;
+  std::vector<Value *> config;
   getKernelLaunchConfig(m, kernelLaunchSite, config);
-  std::vector<Value*> kargs;
+  std::vector<Value *> kargs;
   getKernelArguments(kernelLaunchSite, kargs);
   CallBase *confCall = getKernelConfigCall(m, kernelLaunchSite);
   BasicBlock *launchBlock = kernelLaunchSite->getParent();
@@ -569,85 +576,18 @@ llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
   LLVMContext &ctx = m.getContext();
   IRBuilder<> builder(ctx);
 
-  // check if kernelLaunch is invoke inst and insert branch if so
-  InvokeInst *kernelInv = dyn_cast_or_null<InvokeInst>(kernelLaunchSite);
-  if (kernelInv != nullptr) {
-    BasicBlock *branchTarget = kernelInv->getNormalDest();
-    builder.SetInsertPoint(kernelLaunchSite);
+  // check if config call is invoke inst and insert branch if so
+  InvokeInst *confInv = dyn_cast_or_null<InvokeInst>(confCall);
+  if (confInv != nullptr) {
+    BasicBlock *branchTarget = confInv->getNormalDest();
+    builder.SetInsertPoint(confCall);
     builder.CreateBr(branchTarget);
   }
-    
-  // remove old kernel launch
-  // remaining basic block should be eliminated because it can be reached
-  kernelLaunchSite->eraseFromParent();
 
-  // find blocks between launchBlock and ConfigureCallBlack
-  queue<BasicBlock*> q;
-  q.push(launchBlock);
-  vector<BasicBlock*> listOfRemoval;
-  while(q.empty() == false) {
-    BasicBlock *currentBlock = q.front();
-    q.pop();
-
-    // Add predecessors if not basic block of configure call
-    pred_iterator PI = pred_begin(currentBlock), E = pred_end(currentBlock);
-    assert( PI != E);// or currentBlock == confCall->getParent());
-    for (;PI != E; ++PI) {
-        if (*PI != confCall->getParent()) { // PI vs currentblock
-	  q.push(*PI);
-	}
-	// Add Block to remove list if not already there
-	bool alreadyInList = false;
-	for(auto block : listOfRemoval) {
-	  if (block == currentBlock) {
-	    alreadyInList = true;
-	    break;
-	  }
-	}
-	if (not alreadyInList)
-          listOfRemoval.push_back(currentBlock);
-    }
-  }
-
-  // Erase blocks
-  for (int i=listOfRemoval.size()-1; i>=0; --i) {
-	  listOfRemoval[i]->eraseFromParent();
-  }
-  /*
-  for(auto block : listOfRemoval) {
-    block->eraseFromParent();
-  }*/
-
-  /*
-  assert(currentBlock != nullptr);
-  if (confCall->getParent() != currentBlock) {
-    BasicBlock *prev = currentBlock->getSinglePredecessor();
-    Instruction *termInst = prev->getTerminator();
-    InvokeInst *invInst = dyn_cast_or_null<InvokeInst>(termInst);
-    assert( invInst != nullptr);
-    invInst->setNormalDest(launchBlock);
-    currentBlock->eraseFromParent();
-  }
-  */
-
-  // Branch to Launch Block Before Configure Call
-  // New code will be inserted before cudaConfigureCall an a new basic block
-  BasicBlock *insertPoint = confCall->getParent();
-  // New Block begins with configure call
-  BasicBlock *newBlock = confCall->getParent()->splitBasicBlock(confCall);
-  // Insert code before in block before configure call
-  Instruction *terminator = insertPoint->getTerminator();
-  builder.SetInsertPoint(terminator);
-  builder.CreateBr(launchBlock);
-  terminator->eraseFromParent();
-
-  // remove configure call
-  for(auto *user : confCall->users()) {
-    user->dropAllReferences();
-  }
+  // replace all uses of confCall with 0 (for success) and erase it
+  confCall->replaceAllUsesWith(builder.getInt32(0));
   confCall->eraseFromParent();
-  newBlock->eraseFromParent();
-  
+
   // Prepare Launch Call Args
   std::vector<Value *> args;
   // append kernel launch config
@@ -663,18 +603,30 @@ llvm::CallBase *replaceKernelLaunch(llvm::Module &m,
     args.push_back(val);
   }
 
+  // insert before old kernel launch
+  builder.SetInsertPoint(kernelLaunchSite);
 
-
-  // cast pointer to stream if types do not match
-  builder.SetInsertPoint(launchBlock->getTerminator());
   FunctionType *ft = replacementWrapper->getFunctionType();
   auto params = ft->params();
+  // cast pointer to stream if types do not match
   if (args[5]->getType() != params[5]) {
     args[5] = builder.CreateBitCast(args[5], params[5]);
   }
+
   // insert new kernel launch
   CallBase *newLaunchCall = builder.CreateCall(replacementWrapper, args);
-  
+
+  // check if kernelLaunch is invoke inst and insert branch if so
+  InvokeInst *kernelInv = dyn_cast_or_null<InvokeInst>(kernelLaunchSite);
+  if (kernelInv != nullptr) {
+    BasicBlock *branchTarget = kernelInv->getNormalDest();
+    builder.SetInsertPoint(kernelLaunchSite);
+    builder.CreateBr(branchTarget);
+  }
+
+  // remove old kernel launch
+  kernelLaunchSite->eraseFromParent();
+
   return newLaunchCall;
 }
 
