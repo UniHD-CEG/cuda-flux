@@ -29,34 +29,6 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   errs() << "CUDA Flux: CUDA Version ";
   errs() << M.getSDKVersion().getMajor() << "."
          << M.getSDKVersion().getMinor().getValue() << "\n";
-  // errs() << "CUDA Flux: uses new CUDA Launch: " <<
-  // mekong::usesNewKernelLaunch(M) << "\n";
-
-  // Test Code
-  /*
-  std::vector<Function*> handles;
-  mekong::getKernelHandles(M,handles);
-  for(auto *kernel : handles) {
-    std::vector<CallBase*> launchSites;
-    mekong::getKernelLaunchSites(kernel, launchSites);
-    for(auto *launch : launchSites) {
-      std::vector<Value*> kargs;
-      mekong::getKernelArguments(launch, kargs);
-      std::vector<Value*> config;
-      mekong::getKernelLaunchConfig(M, launch, config);
-      errs() << "CUDA Flux: KernelLaunch found:\n";
-      errs() << "Kernel " << kernel->getName() << "\n";
-      errs() << *launch << "\n";
-      errs() << "Arguments:\n";
-      for(auto *val : kargs)
-        errs() << *val << "\n";
-      errs() << "Configuration:\n";
-      for(auto *val : config)
-        errs() << *val << "\n";
-    }
-  }
-  */
-  // Test Code End
 
   // Link Device Runtime //
   // Load Memory Buffer from Headerfile
