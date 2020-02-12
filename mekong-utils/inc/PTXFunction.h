@@ -5,16 +5,16 @@
 #include <vector>
 
 namespace mekong {
-  // { FunctionName, { BasicBlock : InstList }}
-  struct PTXFunction {
+// { FunctionName, { BasicBlock : InstList }}
+struct PTXFunction {
+  std::string name;
+  struct Block {
     std::string name;
-    struct Block {
-      std::string name;
-      std::vector<std::string> inst;
-    };
-
-    std::vector<Block> bb;
+    std::vector<std::string> inst;
   };
-}
+
+  std::vector<Block> bb;
+};
+} // namespace mekong
 
 #endif

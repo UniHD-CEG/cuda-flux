@@ -4,9 +4,8 @@
 #include "llvm/IR/BasicBlock.h"
 
 namespace mekong {
-  void visitNodes( llvm::BasicBlock *begin, llvm::BasicBlock *end, 
-      void *data, bool (*visitorFunc) (llvm::BasicBlock *, void *));
+void visitNodes(llvm::BasicBlock *begin, llvm::BasicBlock *end, void *data,
+                bool (*visitorFunc)(llvm::BasicBlock *, void *));
 }
 
 #endif
-

@@ -24,7 +24,7 @@ namespace mekong {
 
 std::string getModulePrefix(llvm::Module *m);
 void dumpModuleToFile(llvm::Module &m, std::string filepath);
-void dumpModuleToFile(llvm::Module &m, const char* filepath);
+void dumpModuleToFile(llvm::Module &m, const char *filepath);
 std::map<llvm::BasicBlock *, int>
 getBlockIDMap(llvm::Function *func, std::vector<mekong::PTXFunction> funcVec,
               std::string originalFunctionName);

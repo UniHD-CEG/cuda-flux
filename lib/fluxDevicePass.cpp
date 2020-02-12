@@ -1,37 +1,38 @@
-#include "cudaFluxPasses.h"
 #include "Mekong-Utils.h"
+#include "cudaFluxPasses.h"
 #include "deviceRuntime.h"
 #include "ptx_parser.h"
 
-#include "llvm/Pass.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Bitcode/BitcodeWriter.h"
 
-#include <string>
-#include <vector>
-#include <map>
+#include <array>
 #include <cstdio>
+#include <fstream>
+#include <map>
 #include <memory>
 #include <stdexcept>
-#include <array>
-#include <fstream>
+#include <string>
+#include <vector>
 
 using namespace llvm;
 
-std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    while (!feof(pipe.get())) {
-        if (fgets(buffer.data(), 128, pipe.get()) != nullptr)
-            result += buffer.data();
-    }
-    return result;
+std::string exec(const char *cmd) {
+  std::array<char, 128> buffer;
+  std::string result;
+  std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
+  if (!pipe)
+    throw std::runtime_error("popen() failed!");
+  while (!feof(pipe.get())) {
+    if (fgets(buffer.data(), 128, pipe.get()) != nullptr)
+      result += buffer.data();
+  }
+  return result;
 }
 
 std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
@@ -39,7 +40,7 @@ std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
   std::string prefix = mekong::getModulePrefix(&M);
 
   errs() << "CUDA Flux: Module prefix: " << prefix << "\n";
-  
+
   // Write IR to file
   std::string byteCodeFile = prefix + ".bc";
   mekong::dumpModuleToFile(M, byteCodeFile);
@@ -51,17 +52,20 @@ std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
   mekong::getKernels(M, kernels);
   std::string target_proc;
   std::string target_features;
-  for (Function *kernel: kernels) {
+  for (Function *kernel : kernels) {
     target_proc = kernel->getFnAttribute("target-cpu").getValueAsString();
-    target_features = kernel->getFnAttribute("target-features").getValueAsString();
+    target_features =
+        kernel->getFnAttribute("target-features").getValueAsString();
     break; // assume all kernel have the same attributes
   }
 
   // use O2 because at this point all the higher optimizations are already done.
   // O2 ensures that the kernel is not simplyfied (de-optimized) again
-  std::string llc_cmd = "llc  -O2 -mcpu=" + target_proc + " -mattr=" + target_features + " -o " + ptxFile + " " + byteCodeFile;
+  std::string llc_cmd = "llc  -O2 -mcpu=" + target_proc +
+                        " -mattr=" + target_features + " -o " + ptxFile + " " +
+                        byteCodeFile;
   exec(llc_cmd.c_str());
-  
+
   // parse ptx and write to file
   std::string outputFile = prefix + ".out";
   auto tokenVec = mekong::lexicalAnalysis(ptxFile);
@@ -90,15 +94,16 @@ std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
   // Get Register Usage
   {
     // errs() << "Parsing Register Usage...\n";
-    // TODO path will not work if not already installed. this will fail when testing
-    // std::string python_cmd = "parseRegisterUsage.py " + ptxFile + " " + outputFile;
-    // exec(python_cmd.c_str());
+    // TODO path will not work if not already installed. this will fail when
+    // testing std::string python_cmd = "parseRegisterUsage.py " + ptxFile + " "
+    // + outputFile; exec(python_cmd.c_str());
   }
 
   return funcVec;
 }
 
-void basicBlockInstrumentation(Module &M, std::vector<mekong::PTXFunction> funcVec) {
+void basicBlockInstrumentation(Module &M,
+                               std::vector<mekong::PTXFunction> funcVec) {
 
   LLVMContext &ctx = M.getContext();
 
@@ -111,24 +116,28 @@ void basicBlockInstrumentation(Module &M, std::vector<mekong::PTXFunction> funcV
 
   // For each Kernel
   for (Function *kernel : kernels) {
-    errs() << "CUDA Flux: Working on kernel: " +kernel->getName() + "\n";
+    errs() << "CUDA Flux: Working on kernel: " + kernel->getName() + "\n";
     // TODO Check for function calls
     bool callsFunctions = false;
 
     // Warn if function calls are made
     if (callsFunctions)
-      errs() << "CUDA Flux: WARNING for kernel " + kernel->getName() + ": FunctionCalls are not supported yet!\n";
+      errs() << "CUDA Flux: WARNING for kernel " + kernel->getName() +
+                    ": FunctionCalls are not supported yet!\n";
 
     // Clone Kernel and add Argument
     std::vector<Type *> args;
     args.push_back(Type::getInt64PtrTy(ctx));
     args.push_back(Type::getInt32Ty(ctx));
     args.push_back(Type::getInt32Ty(ctx));
-    Function *kernelClone = mekong::cloneAndAddArgs(kernel, args, {"bblist", "n_banks", "profiling_mode"});
+    Function *kernelClone = mekong::cloneAndAddArgs(
+        kernel, args, {"bblist", "n_banks", "profiling_mode"});
 
     // Assign each block an id
-    // Must be done on the kernel clone otherwise the mapping is of when instrumenting the basic blocks
-    std::map<BasicBlock *, int> blockIDs = mekong::getBlockIDMap(kernelClone, funcVec, kernel->getName());
+    // Must be done on the kernel clone otherwise the mapping is of when
+    // instrumenting the basic blocks
+    std::map<BasicBlock *, int> blockIDs =
+        mekong::getBlockIDMap(kernelClone, funcVec, kernel->getName());
     int block_count = 0;
     for (llvm::BasicBlock &bb : kernelClone->getBasicBlockList()) {
       block_count += 1;
@@ -136,11 +145,14 @@ void basicBlockInstrumentation(Module &M, std::vector<mekong::PTXFunction> funcV
     errs() << "CUDA Flux: BlockCount: " << block_count << "\n";
 
     // Get TracePointer (2 before last kernel argument)
-    Value *trace_ptr = &*(kernelClone->arg_begin() + (kernelClone->arg_size() - 3));
+    Value *trace_ptr =
+        &*(kernelClone->arg_begin() + (kernelClone->arg_size() - 3));
     // Get Number of Banks (before kernel argument)
-    Value *n_banks = &*(kernelClone->arg_begin() + (kernelClone->arg_size() - 2));
+    Value *n_banks =
+        &*(kernelClone->arg_begin() + (kernelClone->arg_size() - 2));
     // Get Profiling Mode (last kernel argument)
-    Value *profiling = &*(kernelClone->arg_begin() + (kernelClone->arg_size() - 1));
+    Value *profiling =
+        &*(kernelClone->arg_begin() + (kernelClone->arg_size() - 1));
 
     // Get IRBuilder
     IRBuilder<> builder(ctx);
@@ -154,14 +166,15 @@ void basicBlockInstrumentation(Module &M, std::vector<mekong::PTXFunction> funcV
       builder.SetInsertPoint(&*bb.getFirstInsertionPt());
       Constant *block_ID = builder.getInt32(blockIDs.at(&bb));
 
-      //errs() << *traceFun << "\n";
-      //errs() << *trace_ptr <<"\t"<< *block_ID <<"\t"<< *n_banks << "\n";
+      // errs() << *traceFun << "\n";
+      // errs() << *trace_ptr <<"\t"<< *block_ID <<"\t"<< *n_banks << "\n";
 
       // Increase blockCounter[blockID]
       builder.CreateCall(traceFun, {trace_ptr, block_ID, n_banks, profiling});
     }
 
-    // Add metadata so the device function will become a kernel when assembled to a binary
+    // Add metadata so the device function will become a kernel when assembled
+    // to a binary
     mekong::markKernel(M, kernelClone);
   }
 }
@@ -178,7 +191,8 @@ bool FluxDevicePass::runOnModule(Module &M) {
 
   // Link Device Runtime //
   // Load Memory Buffer from Headerfile
-  std::string deviceRuntimeNull((const char *) deviceRuntime_ll, deviceRuntime_ll_len);
+  std::string deviceRuntimeNull((const char *)deviceRuntime_ll,
+                                deviceRuntime_ll_len);
   // Add nulltermination
   deviceRuntimeNull.append("\0");
   StringRef deviceRuntime(deviceRuntimeNull.c_str(), deviceRuntimeNull.size());
@@ -192,9 +206,7 @@ bool FluxDevicePass::runOnModule(Module &M) {
 }
 
 void FluxDevicePass::getAnalysisUsage(AnalysisUsage &AU) const {
-  //AU.setPreservesAll();
+  // AU.setPreservesAll();
 }
 
-void FluxDevicePass::releaseMemory() {
-
-}
+void FluxDevicePass::releaseMemory() {}

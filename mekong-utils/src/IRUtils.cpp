@@ -77,7 +77,7 @@ void dumpModuleToFile(llvm::Module &m, std::string filepath) {
   }
 }
 
-void dumpModuleToFile(llvm::Module &m, const char* filepath) {
+void dumpModuleToFile(llvm::Module &m, const char *filepath) {
   dumpModuleToFile(m, std::string(filepath));
 }
 
