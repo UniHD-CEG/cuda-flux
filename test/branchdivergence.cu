@@ -17,7 +17,7 @@ void branch_div_test(int n, int *in, float *out) {
   // Execute sum_thread times
   int id = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if ( id > n)
+  if ( id >= n)
     return;  // execute sum_thread - n times
 
 
@@ -62,8 +62,9 @@ int main(int argc, char **argv) {
   CU_CHK(cudaMemcpy(d_in, in, n * sizeof(int), cudaMemcpyHostToDevice));
   cudaMemset ( d_out, 0, n);
 
+
   auto t0 = high_resolution_clock::now();
-  branch_div_test <<< n/16, 16 >>> (n, d_in, d_out);
+  branch_div_test <<< (n+(16-1))/16, 16 >>> (n, d_in, d_out);
   CU_CHK(cudaGetLastError());
   CU_CHK(cudaDeviceSynchronize());
   auto t1 = high_resolution_clock::now();
@@ -74,9 +75,10 @@ int main(int argc, char **argv) {
     return -1;
 
   cout << "Duaration kernel: " << duration_cast<microseconds>(t1 - t0).count() << endl;
-  cout << (n/16)*16 << ", " << n << ", " << sum << ", " << sum/7 << ", " << sum - (sum/7) << endl;
-  cout << sum << endl;
-  cout << sizeof(long) << "\t" << sizeof(uint64_t) << endl;
+  cout << "N, sum:\n" << n << ", " << sum << "\n";
+  //cout << (n/16)*16 << ", " << n << ", " << sum << ", " << sum/7 << ", " << sum - (sum/7) << endl;
+  //cout << sum << endl;
+  //cout << sizeof(long) << "\t" << sizeof(uint64_t) << endl;
 
   return 0;
 }

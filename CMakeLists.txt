@@ -11,12 +11,12 @@ set(LLVM_ENABLE_PLUGINS ON)
 
 add_subdirectory(mekong-utils)
 
+# Precompile host and device runtime and produce blob
 add_custom_command( OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h
 	COMMAND clang++  -S -emit-llvm --cuda-device-only --cuda-gpu-arch=sm_30 -O3 -std=c++11
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/deviceRuntime.cu -o deviceRuntime.ll
 	COMMAND xxd -i deviceRuntime.ll > ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h
 	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/lib/deviceRuntime.cu )
-
 add_custom_target( deviceRuntime DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h)
 
 add_custom_command( OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/inc/hostRuntime.h
@@ -24,7 +24,6 @@ add_custom_command( OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/inc/hostRuntime.h
 	${CMAKE_CURRENT_SOURCE_DIR}/lib/hostRuntime.cpp -o hostRuntime.ll
 	COMMAND xxd -i hostRuntime.ll > ${CMAKE_CURRENT_SOURCE_DIR}/inc/hostRuntime.h
 	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/lib/hostRuntime.cpp )
-
 add_custom_target( hostRuntime DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/inc/hostRuntime.h)
 
 add_library(cuda_flux_pass MODULE
@@ -42,6 +41,7 @@ target_link_libraries( cuda_flux_pass PRIVATE mekong-utils)
 set_target_properties(cuda_flux_pass PROPERTIES COMPILE_FLAGS "-fno-rtti" POSITION_INDEPENDENT_CODE ON)
 
 set_target_properties( cuda_flux_pass PROPERTIES LINK_FLAGS "-Xlinker -zdynamic-undefined-weak")
+
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)
@@ -51,30 +51,26 @@ if(APPLE)
 endif(APPLE)
 
 # Testing
-if(EXISTS ${LLVM_MAIN_SRC_DIR}/utils/lit/lit.py)
-	message("lit found")
-else()
-	message("lit not found")
-endif()
-
-#get_cmake_property(_variableNames VARIABLES)
-#list (SORT _variableNames)
-#foreach (_variableName ${_variableNames})
-#	message(STATUS "${_variableName}=${${_variableName}}")
-#endforeach()
-
 add_test( NAME Saxpy
         COMMAND clang++ --cuda-gpu-arch=sm_30 -std=c++11 -lcudart
         -finline-functions
         -Xclang -load -Xclang ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so
-        ${CMAKE_CURRENT_SOURCE_DIR}/test/saxpy.cu
-        -o ${CMAKE_CURRENT_BINARY_DIR}/saxpy )
+        saxpy.cu
+        -o saxpy 
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test )
 add_test( NAME BranchDivergence
 	COMMAND clang++ --cuda-gpu-arch=sm_30 -std=c++11 -lcudart
 	-finline-functions
 	-Xclang -load -Xclang ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so
-	${CMAKE_CURRENT_SOURCE_DIR}/test/branchdivergence.cu
-	-o ${CMAKE_CURRENT_BINARY_DIR}/BranchDivergence )
+	branchdivergence.cu
+	-o branchDivergence
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test )
+add_test(NAME run_saxpy COMMAND ./gpu_check_wrapper.sh ./saxpy
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test )
+# Max 100.000.000 threads
+add_test(NAME run_branch_divergence COMMAND ./gpu_check_wrapper.sh ./check_branch_div.py 2349243
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test )
+set_tests_properties(run_saxpy run_branch_divergence PROPERTIES SKIP_RETURN_CODE 77)
 # Regression tests
 add_test(NAME rodinia_hotspot 
 	COMMAND opt -load ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so -S --host-cuda-flux rodinia_hotspot_hostcode.bc
@@ -82,8 +78,6 @@ add_test(NAME rodinia_hotspot
 add_test(NAME rodinia_nn
 	COMMAND opt -load ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so -S --host-cuda-flux rodinia_nn_hostcode.bc
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/regression_test_ir)
-add_test(NAME MyTest COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test/runtime_test.sh)
-set_tests_properties(MyTest PROPERTIES SKIP_RETURN_CODE 77)
 
 enable_testing()
 
