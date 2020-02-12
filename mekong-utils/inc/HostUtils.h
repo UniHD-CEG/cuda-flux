@@ -19,12 +19,6 @@ llvm::CallBase *getKernelConfigCall(llvm::Module &m,
 void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
                            std::vector<llvm::Value *> &config);
 
-void getKernelLaunches(
-    llvm::Module &m,
-    std::vector<std::pair<llvm::CallBase *, llvm::CallBase *>> &kernelLaunch);
-void getLaunchArguments(llvm::Module &m, llvm::CallBase *configureCall,
-                        llvm::CallBase *launchCall,
-                        std::vector<llvm::Value *> &args);
 llvm::Function *getCudaSynchronizeStream(llvm::Module &m);
 
 // Transformation Functions
@@ -36,10 +30,6 @@ llvm::CallBase *
 replaceKernelLaunch(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
                     llvm::Function *replacementWrapper,
                     std::vector<llvm::Value *> &additionalArguments);
-llvm::CallBase *
-replaceKernelCall(llvm::Module &m, llvm::CallBase *configureCall,
-                  llvm::CallBase *launchCall, llvm::Function *replacement,
-                  std::vector<llvm::Value *> &additionalArguments);
 llvm::Function *createKernelWrapper(llvm::Module &m, const std::string name,
                                     llvm::FunctionType *ft);
 
