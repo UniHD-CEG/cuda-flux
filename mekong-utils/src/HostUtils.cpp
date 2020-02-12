@@ -119,16 +119,16 @@ void getKernelLaunchSites(llvm::Function *klFun,
 
 void getKernelArguments(llvm::CallBase *kernelLaunchSite,
                         std::vector<llvm::Value *> &args) {
-  for (auto &op : kernelLaunchSite->operands()) {
+  for (Use &op : kernelLaunchSite->operands()) {
     // Make sure not to inclide the kernel launch wrapper
-    Function *fun = dyn_cast_or_null<Function>(&op);
+    Function *fun = dyn_cast_or_null<Function>(op.get());
     if (fun != nullptr and fun == kernelLaunchSite->getCalledFunction())
       continue;
     // also skip invoke operands which are basicblocks
-    if (dyn_cast_or_null<BasicBlock>(&op) != nullptr)
+    if (dyn_cast_or_null<BasicBlock>(op.get()) != nullptr)
       continue;
 
-    args.push_back(op);
+    args.push_back(op.get());
   }
   // get arguments regarding launch configuration
   return;
@@ -199,14 +199,14 @@ void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
                            std::vector<llvm::Value *> &config) {
   CallBase *confCall = getKernelConfigCall(m, kernelLaunchSite);
 
-  for (auto &val : confCall->operands()) {
+  for (Use &val : confCall->operands()) {
     // only the arguments are wanted not the function itself
-    if (dyn_cast_or_null<Function>(&val) != nullptr)
+    if (dyn_cast_or_null<Function>(val.get()) != nullptr)
       continue;
     // discard basic blocks in case the callbase is an invoke instruction
-    if (dyn_cast_or_null<BasicBlock>(&val) != nullptr)
+    if (dyn_cast_or_null<BasicBlock>(val.get()) != nullptr)
       continue;
-    config.push_back(val);
+    config.push_back(val.get());
   }
   return;
 }
@@ -295,15 +295,14 @@ void getLaunchArguments(llvm::Module &m, llvm::CallBase *configureCall,
 
     if (ci != nullptr &&
         (ci->getCalledFunction() == launchCall->getFunction())) {
-      for (auto &val : ci->operands()) {
+      for (Use &val : ci->operands()) {
         // only the arguments are wanted not the function itself
-        if (dyn_cast_or_null<Function>(&val) != nullptr)
+        if (dyn_cast_or_null<Function>(val.get()) != nullptr)
           continue;
         // also skip invoke operands which are basicblocks
-        if (dyn_cast_or_null<BasicBlock>(&val) != nullptr)
+        if (dyn_cast_or_null<BasicBlock>(val.get()) != nullptr)
           continue;
-        // val->dump();
-        args.push_back(val);
+        args.push_back(val.get());
       }
       continue;
     }
@@ -387,8 +386,8 @@ void registerKernel(llvm::Module &m, const std::string name,
                                            null,
                                            int32null};
 
-  CallBase *errorCode =
-      builder.CreateCall(registerFunction, registerFunctionsArgs);
+  // CallBase *errorCode =
+  builder.CreateCall(registerFunction, registerFunctionsArgs);
   // mekong::callPrintf(m, "RegisterFunction: %d\n",
   // errorCode)->insertAfter(errorCode);
 }
@@ -571,7 +570,7 @@ replaceKernelLaunch(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
   std::vector<Value *> kargs;
   getKernelArguments(kernelLaunchSite, kargs);
   CallBase *confCall = getKernelConfigCall(m, kernelLaunchSite);
-  BasicBlock *launchBlock = kernelLaunchSite->getParent();
+  assert(confCall != nullptr);
 
   LLVMContext &ctx = m.getContext();
   IRBuilder<> builder(ctx);
@@ -651,14 +650,13 @@ llvm::CallBase *replaceKernelCall(llvm::Module &m,
   std::vector<Value *> args;
 
   // get arguments regarding launch configuration
-  for (auto &val : configureCall->operands()) {
+  for (Use &val : configureCall->operands()) {
     // only the arguments are wanted not the function itself
-    if (dyn_cast_or_null<Function>(&val) != nullptr)
+    if (dyn_cast_or_null<Function>(val.get()) != nullptr)
       continue;
-    if (dyn_cast_or_null<BasicBlock>(&val) != nullptr)
+    if (dyn_cast_or_null<BasicBlock>(val.get()) != nullptr)
       continue;
-    // val->dump();
-    args.push_back(val);
+    args.push_back(val.get());
   }
 
   // Find block where kernel wrapper is called
