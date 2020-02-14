@@ -14,10 +14,10 @@ CUDA Flux is a profiler for GPU applications which reports the basic block execu
   CMake config:
   ```
   cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=/opt/llvm-10.0 \
--DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
--DLLVM_ENABLE_DOXYGEN=OFF -DLLVM_BUILD_DOCS=OFF -GNinja \
--DLLVM_INSTALL_BINUTILS_SYMLINKS=ON -DBUILD_SHARED_LIBS=ON \
-../llvm
+  -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_DOXYGEN=OFF -DLLVM_BUILD_DOCS=OFF -GNinja \
+  -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON -DBUILD_SHARED_LIBS=ON \
+  ../llvm
   ```
 
 * re2c lexer generator - http://re2c.org/ (make sure to check your package manager first)
