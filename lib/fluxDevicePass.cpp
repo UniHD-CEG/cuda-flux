@@ -50,8 +50,8 @@ std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
   std::string ptxFile = prefix + ".ptx";
   std::vector<Function *> kernels;
   mekong::getKernels(M, kernels);
-  std::string target_proc;
-  std::string target_features;
+  StringRef target_proc;
+  StringRef target_features;
   for (Function *kernel : kernels) {
     target_proc = kernel->getFnAttribute("target-cpu").getValueAsString();
     target_features =
@@ -61,8 +61,8 @@ std::vector<mekong::PTXFunction> ptxInstructionAnalysis(Module &M) {
 
   // use O2 because at this point all the higher optimizations are already done.
   // O2 ensures that the kernel is not simplyfied (de-optimized) again
-  std::string llc_cmd = "llc  -O2 -mcpu=" + target_proc +
-                        " -mattr=" + target_features + " -o " + ptxFile + " " +
+  std::string llc_cmd = "llc  -O2 -mcpu=" + target_proc.str() +
+                        " -mattr=" + target_features.str() + " -o " + ptxFile + " " +
                         byteCodeFile;
   exec(llc_cmd.c_str());
 
@@ -137,7 +137,7 @@ void basicBlockInstrumentation(Module &M,
     // Must be done on the kernel clone otherwise the mapping is of when
     // instrumenting the basic blocks
     std::map<BasicBlock *, int> blockIDs =
-        mekong::getBlockIDMap(kernelClone, funcVec, kernel->getName());
+        mekong::getBlockIDMap(kernelClone, funcVec, kernel->getName().str());
     int block_count = 0;
     for (llvm::BasicBlock &bb : kernelClone->getBasicBlockList()) {
       block_count += 1;

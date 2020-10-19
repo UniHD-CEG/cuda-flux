@@ -94,7 +94,8 @@ void loadGlobalVar(Function *kernel, GlobalVariable *gv, Value *&val) {
 
   AddrSpaceCastInst *gvp =
       new AddrSpaceCastInst(gv, gv->getType()->getPointerTo(), "", insertPoint);
-  val = new LoadInst(gvp, "", insertPoint);
+  Type *ty = cast<PointerType>(gvp->getType())->getElementType();
+  val = new LoadInst(ty, gvp, "", insertPoint);
 }
 
 /// Adds metadata to the current module that will make the given function

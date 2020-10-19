@@ -4,5 +4,5 @@ module-whatis "LLVM GPU Basic Block Profiler Pass"
 set-alias opt "opt -load @CMAKE_INSTALL_PREFIX@/lib/@CMAKE_SHARED_LIBRARY_PREFIX@cuda_flux_pass@CMAKE_SHARED_LIBRARY_SUFFIX@"
 prepend-path PATH @CMAKE_INSTALL_PREFIX@/bin
 
-prereq llvm
+prereq llvm/11.0
 prereq cuda

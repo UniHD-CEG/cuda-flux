@@ -23,7 +23,7 @@ bool launchFinder(BasicBlock *block, void *launchCallPtr) {
 
     // If inst is a call inst look for cuda funktions
     if (CallBase *ci = dyn_cast_or_null<CallBase>(&inst)) {
-      string name = ci->getCalledFunction()->getName();
+      StringRef name = ci->getCalledFunction()->getName();
       if (name == "cudaSetupArgument")
         continue;
       if (name == "cudaLaunch") {

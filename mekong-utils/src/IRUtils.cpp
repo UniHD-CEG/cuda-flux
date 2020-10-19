@@ -50,7 +50,7 @@ getBlockIDMap(llvm::Function *func, std::vector<mekong::PTXFunction> funcVec,
   }
 
   // Build BB Name -> ID Map
-  std::map<std::string, int> nameMap;
+  std::map<StringRef, int> nameMap;
   for (int i = 0; i < funcPTX.bb.size(); ++i) {
     nameMap.insert({funcPTX.bb[i].name, i});
   }
@@ -69,7 +69,7 @@ void dumpModuleToFile(llvm::Module &m, std::string filepath) {
   std::error_code EC;
   { // Seperate name space to prevent usage of file later in code
     // also flushes input of file to disk - very important!
-    raw_fd_ostream file(filepath, EC, sys::fs::F_Text);
+    raw_fd_ostream file(filepath, EC, llvm::sys::fs::OpenFlags(1)); // OF_Text
     // WriteBitcodeToFile()
     assert(!EC);
     llvm::WriteBitcodeToFile(m, file);

@@ -1,7 +1,7 @@
 #include "cudaFluxPasses.h"
 
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/PassSupport.h"
+#include "llvm/Pass.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 using namespace llvm;
