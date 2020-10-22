@@ -34,11 +34,9 @@ bool launchFinder(BasicBlock *block, void *launchCallPtr) {
         // function
       } else {
 
-        Function *cudaLaunch =
-            block->getParent()->getParent()->getFunction("cudaLaunch");
+        Function *cudaLaunch = block->getParent()->getParent()->getFunction("cudaLaunch");
         for (Value *launchCallVal : cudaLaunch->users()) {
-          if (CallBase *launchCallBase =
-                  dyn_cast_or_null<CallBase>(launchCallVal)) {
+          if (CallBase *launchCallBase = dyn_cast_or_null<CallBase>(launchCallVal)) {
             if (launchCallBase->getFunction() == ci->getCalledFunction()) {
               *ptr = launchCallBase;
               return true;
@@ -50,11 +48,9 @@ bool launchFinder(BasicBlock *block, void *launchCallPtr) {
     }   // end if (CallBase *ci = dync_cast_or_null<CallBase>(&inst))
     if (InvokeInst *invi = dyn_cast_or_null<InvokeInst>(&inst)) {
       // Check if cudaLaunch is called from the possible kernel wrapper function
-      Function *cudaLaunch =
-          block->getParent()->getParent()->getFunction("cudaLaunch");
+      Function *cudaLaunch = block->getParent()->getParent()->getFunction("cudaLaunch");
       for (Value *launchCallVal : cudaLaunch->users()) {
-        if (CallBase *launchCallBase =
-                dyn_cast_or_null<CallBase>(launchCallVal)) {
+        if (CallBase *launchCallBase = dyn_cast_or_null<CallBase>(launchCallVal)) {
           if (launchCallBase->getFunction() == invi->getCalledFunction()) {
             *ptr = launchCallBase;
             return true;
@@ -75,9 +71,7 @@ namespace mekong {
 ///                           Analysis Functions
 ///===------------------------------------------------------------------===//
 
-bool usesNewKernelLaunch(llvm::Module &m) {
-  return m.getSDKVersion() >= VersionTuple(9, 2);
-}
+bool usesNewKernelLaunch(llvm::Module &m) { return m.getSDKVersion() >= VersionTuple(9, 2); }
 
 void getKernelDescriptors(llvm::Module &m, std::vector<KernelDescriptor> &desc) {
   Function *registerFunction = m.getFunction("__cudaRegisterFunction");
@@ -93,12 +87,13 @@ void getKernelDescriptors(llvm::Module &m, std::vector<KernelDescriptor> &desc) 
       // 3rd argument is the kernel name (on device side)
       GlobalVariable *gv = dyn_cast_or_null<GlobalVariable>(callBase->getArgOperand(2)->stripPointerCastsAndAliases());
       ConstantDataSequential *val_name = nullptr;
-      if (gv != nullptr) val_name = dyn_cast_or_null<ConstantDataSequential>(gv->getInitializer());
+      if (gv != nullptr)
+        val_name = dyn_cast_or_null<ConstantDataSequential>(gv->getInitializer());
 
       if (val_func != nullptr && val_name != nullptr) {
         StringRef name = val_name->getAsString();
         // Remove null byte at end
-        name = name.substr(0,name.size() - 1);
+        name = name.substr(0, name.size() - 1);
         desc.push_back({handle, name});
       }
     }
@@ -122,7 +117,8 @@ void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles) {
       if (const_str != nullptr) {
         const_str->getInitializer()->dump();
         auto *val = dyn_cast_or_null<ConstantDataSequential>(const_str->getInitializer());
-        if (val != nullptr) errs() << val->getAsString() << "\n";
+        if (val != nullptr)
+          errs() << val->getAsString() << "\n";
       } else {
         errs() << "no cast\n";
       }
@@ -142,8 +138,7 @@ void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles) {
 // in this function cudaLaunch or cudaLaunchKernel will be called
 // this function will not return the call sites if the wrapper function is
 // already inlined
-void getKernelLaunchSites(llvm::Function *klFun,
-                          std::vector<llvm::CallBase *> &callSites) {
+void getKernelLaunchSites(llvm::Function *klFun, std::vector<llvm::CallBase *> &callSites) {
   for (auto *user : klFun->users()) {
     CallBase *callBase = dyn_cast_or_null<CallBase>(user);
     // user must be callbase and call the kernel launch function
@@ -154,8 +149,7 @@ void getKernelLaunchSites(llvm::Function *klFun,
   return;
 }
 
-void getKernelArguments(llvm::CallBase *kernelLaunchSite,
-                        std::vector<llvm::Value *> &args) {
+void getKernelArguments(llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value *> &args) {
   for (Use &op : kernelLaunchSite->operands()) {
     // Make sure not to inclide the kernel launch wrapper
     Function *fun = dyn_cast_or_null<Function>(op.get());
@@ -171,8 +165,7 @@ void getKernelArguments(llvm::CallBase *kernelLaunchSite,
   return;
 }
 
-CallBase *getKernelConfigCall(llvm::Module &m,
-                              llvm::CallBase *kernelLaunchSite) {
+CallBase *getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite) {
   Function *confFunc = nullptr;
 
   if (usesNewKernelLaunch(m)) {
@@ -204,8 +197,7 @@ CallBase *getKernelConfigCall(llvm::Module &m,
 
     // Add predecessors if call was not found
     pred_iterator PI = pred_begin(currentBlock), E = pred_end(currentBlock);
-    assert(PI != E or
-           confCall != nullptr && "Could not find kernel configuration call!");
+    assert(PI != E or confCall != nullptr && "Could not find kernel configuration call!");
     for (; PI != E; ++PI) {
       q.push(*PI);
     }
@@ -216,8 +208,7 @@ CallBase *getKernelConfigCall(llvm::Module &m,
   return confCall;
 }
 
-void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
-                           std::vector<llvm::Value *> &config) {
+void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value *> &config) {
   CallBase *confCall = getKernelConfigCall(m, kernelLaunchSite);
 
   for (Use &val : confCall->operands()) {
@@ -234,12 +225,9 @@ void getKernelLaunchConfig(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
 
 llvm::Function *getCudaSynchronizeStream(llvm::Module &m) {
   LLVMContext &ctx = m.getContext();
-  FunctionType *cudaSyncStream_ft = FunctionType::get(
-      Type::getInt32Ty(ctx),
-      {m.getTypeByName("struct.CUstream_st")->getPointerTo()}, false);
-  return dyn_cast<Function>(
-      m.getOrInsertFunction("cudaStreamSynchronize", cudaSyncStream_ft)
-          .getCallee());
+  FunctionType *cudaSyncStream_ft =
+      FunctionType::get(Type::getInt32Ty(ctx), {m.getTypeByName("struct.CUstream_st")->getPointerTo()}, false);
+  return dyn_cast<Function>(m.getOrInsertFunction("cudaStreamSynchronize", cudaSyncStream_ft).getCallee());
 }
 
 void getGridConfig(llvm::CallBase *call, llvm::Value *(&arguments)[4]) {
@@ -254,17 +242,14 @@ void getGridConfig(llvm::CallBase *call, llvm::Value *(&arguments)[4]) {
 ///                        Transformation Functions
 ///===------------------------------------------------------------------===//
 
-void registerKernel(llvm::Module &m, const std::string name,
-                    llvm::Function *kernelWrapper) {
+void registerKernel(llvm::Module &m, const std::string name, llvm::Function *kernelWrapper) {
   LLVMContext &ctx = m.getContext();
 
   Function *registerGlobals = m.getFunction("__cuda_register_globals");
 
-  assert(registerGlobals != nullptr &&
-         "Could not find __cuda_register_globals!");
+  assert(registerGlobals != nullptr && "Could not find __cuda_register_globals!");
   Function *registerFunction = m.getFunction("__cudaRegisterFunction");
-  assert(registerFunction != nullptr &&
-         "Could not find __cudaRegisterFunction!");
+  assert(registerFunction != nullptr && "Could not find __cudaRegisterFunction!");
 
   // find cuda binary handle
   Value *bin_handle = nullptr;
@@ -292,12 +277,10 @@ void registerKernel(llvm::Module &m, const std::string name,
   IRBuilder<> builder(ctx);
   builder.SetInsertPoint(&registerGlobals->back().back());
 
-  Value *wrapper_casted =
-      builder.CreateBitCast(kernelWrapper, builder.getInt8PtrTy());
+  Value *wrapper_casted = builder.CreateBitCast(kernelWrapper, builder.getInt8PtrTy());
   Value *globalKernelNameString = builder.CreateGlobalStringPtr(name);
   Value *null = ConstantPointerNull::get(builder.getInt8PtrTy());
-  Value *int32null =
-      ConstantPointerNull::get(builder.getInt32Ty()->getPointerTo());
+  Value *int32null = ConstantPointerNull::get(builder.getInt32Ty()->getPointerTo());
   vector<Value *> registerFunctionsArgs = {bin_handle,
                                            wrapper_casted,
                                            globalKernelNameString,
@@ -317,43 +300,34 @@ void registerKernel(llvm::Module &m, const std::string name,
 
 /// Creates a wrapper for a cuda kernel in module m with the given name
 /// The functiontype is the the function signature of the kernel
-Function *createKernelWrapper(llvm::Module &m, const std::string name,
-                              FunctionType *ft) {
+Function *createKernelWrapper(llvm::Module &m, const std::string name, FunctionType *ft) {
   LLVMContext &ctx = m.getContext();
 
   IRBuilder<> builder(ctx);
-  FunctionType *launchType = FunctionType::get(
-      builder.getInt32Ty(),
-      {builder.getInt8PtrTy(), builder.getInt64Ty(), builder.getInt32Ty(),
-       builder.getInt64Ty(), builder.getInt32Ty(),
-       builder.getInt8PtrTy()->getPointerTo(), builder.getInt64Ty(),
-       m.getTypeByName("struct.CUstream_st")->getPointerTo()},
-      false);
+  FunctionType *launchType =
+      FunctionType::get(builder.getInt32Ty(),
+                        {builder.getInt8PtrTy(), builder.getInt64Ty(), builder.getInt32Ty(), builder.getInt64Ty(),
+                         builder.getInt32Ty(), builder.getInt8PtrTy()->getPointerTo(), builder.getInt64Ty(),
+                         m.getTypeByName("struct.CUstream_st")->getPointerTo()},
+                        false);
   // alternativ:
   // m.getFunction("cudaConfigureCall")->Type()-><LetzterTypderArgumente>
 
-  Function *launchKernel = dyn_cast<Function>(
-      m.getOrInsertFunction("cudaLaunchKernel", launchType).getCallee());
+  Function *launchKernel = dyn_cast<Function>(m.getOrInsertFunction("cudaLaunchKernel", launchType).getCallee());
 
   // Same convention like the cuda api function: grid, and block sizes are i32
   // variables and the first two are merged to one i64
-  vector<Type *> wrapperParams = {
-      builder.getInt64Ty(),
-      builder.getInt32Ty(),
-      builder.getInt64Ty(),
-      builder.getInt32Ty(),
-      builder.getInt64Ty(),
-      m.getTypeByName("struct.CUstream_st")->getPointerTo()};
+  vector<Type *> wrapperParams = {builder.getInt64Ty(), builder.getInt32Ty(),
+                                  builder.getInt64Ty(), builder.getInt32Ty(),
+                                  builder.getInt64Ty(), m.getTypeByName("struct.CUstream_st")->getPointerTo()};
 
   // add kernel parameters
   for (auto *param : ft->params())
     wrapperParams.push_back(param);
 
-  FunctionType *wrapperType =
-      FunctionType::get(builder.getInt32Ty(), wrapperParams, false);
+  FunctionType *wrapperType = FunctionType::get(builder.getInt32Ty(), wrapperParams, false);
 
-  Function *wrapper =
-      dyn_cast<Function>(m.getOrInsertFunction(name, wrapperType).getCallee());
+  Function *wrapper = dyn_cast<Function>(m.getOrInsertFunction(name, wrapperType).getCallee());
 
   BasicBlock *entry = BasicBlock::Create(ctx, "entry", wrapper, nullptr);
 
@@ -388,8 +362,7 @@ Function *createKernelWrapper(llvm::Module &m, const std::string name,
   Value *stream = &*(it++); // Stream
 
   // 6. pointer to argument ptr array
-  Value *ptr_array = builder.CreateAlloca(
-      builder.getInt8PtrTy(), builder.getInt64(ft->params().size()));
+  Value *ptr_array = builder.CreateAlloca(builder.getInt8PtrTy(), builder.getInt64(ft->params().size()));
 
   for (int i = 0; i < ft->params().size(); ++i) {
     // Get the parameter for the kernel, which start after the grid etc
@@ -397,8 +370,7 @@ Function *createKernelWrapper(llvm::Module &m, const std::string name,
     Value *memptr = builder.CreateAlloca(argument->getType());
     Value *store = builder.CreateStore(argument, memptr);
     Value *strptr = builder.CreateGEP(ptr_array, builder.getInt64(i));
-    strptr = builder.CreatePointerCast(
-        strptr, argument->getType()->getPointerTo()->getPointerTo());
+    strptr = builder.CreatePointerCast(strptr, argument->getType()->getPointerTo()->getPointerTo());
     builder.CreateStore(memptr, strptr);
   }
 
@@ -421,8 +393,7 @@ Function *createDummyKernelWrapper(llvm::Module &m, const std::string name) {
   IRBuilder<> builder(ctx);
   FunctionType *fty = FunctionType::get(builder.getVoidTy(), {}, false);
 
-  Function *dummy =
-      dyn_cast<Function>(m.getOrInsertFunction(name, fty).getCallee());
+  Function *dummy = dyn_cast<Function>(m.getOrInsertFunction(name, fty).getCallee());
 
   BasicBlock *entry = BasicBlock::Create(ctx, "entry", dummy, nullptr);
 
@@ -432,10 +403,9 @@ Function *createDummyKernelWrapper(llvm::Module &m, const std::string name) {
   return dummy;
 }
 
-llvm::CallBase *
-replaceKernelLaunch(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
-                    llvm::Function *replacementWrapper,
-                    std::vector<llvm::Value *> &additionalArguments) {
+llvm::CallBase *replaceKernelLaunch(llvm::Module &m, llvm::CallBase *kernelLaunchSite,
+                                    llvm::Function *replacementWrapper,
+                                    std::vector<llvm::Value *> &additionalArguments) {
 
   // gather launch config and kernel arguments
   std::vector<Value *> config;

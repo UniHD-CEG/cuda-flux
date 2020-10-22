@@ -27,8 +27,7 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   errs() << "CUDA Flux: instrumenting host code...\n";
 
   errs() << "CUDA Flux: CUDA Version ";
-  errs() << M.getSDKVersion().getMajor() << "."
-         << M.getSDKVersion().getMinor().getValue() << "\n";
+  errs() << M.getSDKVersion().getMajor() << "." << M.getSDKVersion().getMinor().getValue() << "\n";
 
   // Link Device Runtime //
   // Load Memory Buffer from Headerfile
@@ -106,10 +105,9 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
 
   IRBuilder<> builder(ctx);
   Value *analysisStr = mekong::createGlobalStringPtr(M, StringRef(buffer));
-  GlobalVariable *ptxAnalysIsWritten = new GlobalVariable(
-      M, builder.getInt8Ty(), false, GlobalValue::PrivateLinkage,
-      builder.getInt8(0), "ptxAnalysisWritten", nullptr,
-      GlobalVariable::NotThreadLocal, 0);
+  GlobalVariable *ptxAnalysIsWritten =
+      new GlobalVariable(M, builder.getInt8Ty(), false, GlobalValue::PrivateLinkage, builder.getInt8(0),
+                         "ptxAnalysisWritten", nullptr, GlobalVariable::NotThreadLocal, 0);
 
   // Call modified kernel
 
@@ -138,17 +136,14 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
     std::vector<Type *> cloneParamenter;
     for (auto *type : desc.handle->getFunctionType()->params())
       cloneParamenter.push_back(type);
-    cloneParamenter.push_back(
-        Type::getInt64PtrTy(ctx)); // Pointer to Counters for Basic Blocks
-    cloneParamenter.push_back(
-        Type::getInt32Ty(ctx)); // Number of Banks for the counters
-    cloneParamenter.push_back(Type::getInt32Ty(ctx)); // Profiling Mode
+    cloneParamenter.push_back(Type::getInt64PtrTy(ctx)); // Pointer to Counters for Basic Blocks
+    cloneParamenter.push_back(Type::getInt32Ty(ctx));    // Number of Banks for the counters
+    cloneParamenter.push_back(Type::getInt32Ty(ctx));    // Profiling Mode
 
     // Create Kernelclone wrapper
-    FunctionType *cloneType = FunctionType::get(
-        desc.handle->getFunctionType()->getReturnType(), cloneParamenter, false);
-    Function *clonedKernelWrapper =
-        mekong::createKernelWrapper(M, cloneName, cloneType);
+    FunctionType *cloneType =
+        FunctionType::get(desc.handle->getFunctionType()->getReturnType(), cloneParamenter, false);
+    Function *clonedKernelWrapper = mekong::createKernelWrapper(M, cloneName, cloneType);
 
     mekong::registerKernel(M, cloneName, clonedKernelWrapper);
 
@@ -164,11 +159,9 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
       auto result = kernelBlockMap.find(kernelName);
       if (result != kernelBlockMap.end()) {
         blockCount = result->second;
-        errs() << "CUDA Flux: Found BasicBlockCount for kernel " << kernelName
-               << ": " << blockCount << "\n";
+        errs() << "CUDA Flux: Found BasicBlockCount for kernel " << kernelName << ": " << blockCount << "\n";
       } else {
-        errs() << "CUDA Flux: BasicBlockCount for kernel " << kernelName
-               << "not found!\n";
+        errs() << "CUDA Flux: BasicBlockCount for kernel " << kernelName << "not found!\n";
       }
 
       // Set Number of Banks to 64, using the number of SMs would probably be
@@ -178,10 +171,8 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
 
       // Insert function call to create the memory needed for the basic block
       // counters
-      Function *createBBCounterMemoryFu =
-          M.getFunction("createBBCounterMemory");
-      Value *devPtr =
-          builder.CreateCall(createBBCounterMemoryFu, {blockCountVal});
+      Function *createBBCounterMemoryFu = M.getFunction("createBBCounterMemory");
+      Value *devPtr = builder.CreateCall(createBBCounterMemoryFu, {blockCountVal});
       Value *n_banks_val = builder.getInt32(n_banks);
 
       // Insert function call to get the profiling Mode
@@ -200,8 +191,7 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
       // Let the kernel know which profiling mode is used
       additionalArgs.push_back(profilingMode);
 
-      CallBase *cloneLaunchCall = mekong::replaceKernelLaunch(
-          M, launch, clonedKernelWrapper, additionalArgs);
+      CallBase *cloneLaunchCall = mekong::replaceKernelLaunch(M, launch, clonedKernelWrapper, additionalArgs);
 
       // Make sure to insert after the launch call
       builder.SetInsertPoint(cloneLaunchCall->getNextNode());
@@ -210,24 +200,19 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
       // ( syncStream, copy to host, write to file)
       Function *serializeCountersFu = M.getFunction("serializeBBCounter");
 
-      Value *kernelStringPtr =
-          builder.CreateGlobalStringPtr(kernelName.c_str());
+      Value *kernelStringPtr = builder.CreateGlobalStringPtr(kernelName.c_str());
 
       // Use 6th Arg of the clone kernel wrapper, which is the stream
       // wrapper( i64 gridXY, i32 gridZ, i64 blockXY, i32 blockZ, int64 shmsize,
       // cudaStream_t stream, ... )
       builder.CreateCall(serializeCountersFu,
-                         {devPtr, blockCountVal, n_banks_val, kernelStringPtr,
-                          cloneLaunchCall->getArgOperandUse(0),
-                          cloneLaunchCall->getArgOperandUse(1),
-                          cloneLaunchCall->getArgOperandUse(2),
-                          cloneLaunchCall->getArgOperandUse(3),
-                          cloneLaunchCall->getArgOperandUse(4),
+                         {devPtr, blockCountVal, n_banks_val, kernelStringPtr, cloneLaunchCall->getArgOperandUse(0),
+                          cloneLaunchCall->getArgOperandUse(1), cloneLaunchCall->getArgOperandUse(2),
+                          cloneLaunchCall->getArgOperandUse(3), cloneLaunchCall->getArgOperandUse(4),
                           cloneLaunchCall->getArgOperandUse(5), timeval});
 
       // Serializing PTX Analysis
-      Function *writePTX_Analysis =
-          M.getFunction("mekong_WritePTXBlockAnalysis");
+      Function *writePTX_Analysis = M.getFunction("mekong_WritePTXBlockAnalysis");
 
       builder.CreateCall(writePTX_Analysis, {ptxAnalysIsWritten, analysisStr});
     }
@@ -236,8 +221,6 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   return true;
 }
 
-void FluxHostPass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-}
+void FluxHostPass::getAnalysisUsage(AnalysisUsage &AU) const { AU.setPreservesAll(); }
 
 void FluxHostPass::releaseMemory() {}
