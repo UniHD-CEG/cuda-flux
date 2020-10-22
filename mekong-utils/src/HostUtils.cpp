@@ -79,6 +79,33 @@ bool usesNewKernelLaunch(llvm::Module &m) {
   return m.getSDKVersion() >= VersionTuple(9, 2);
 }
 
+void getKernelDescriptors(llvm::Module &m, std::vector<KernelDescriptor> &desc) {
+  Function *registerFunction = m.getFunction("__cudaRegisterFunction");
+  if (registerFunction == nullptr)
+    return;
+  for (auto *user : registerFunction->users()) {
+    // check for callbase as this will find all call sites of "__cudaRegisterFunction"
+    CallBase *callBase = dyn_cast_or_null<CallBase>(user);
+    if (callBase != nullptr) {
+      // 2nd argumen is the handle under which the kernel is registered
+      Value *val_func = (callBase->getArgOperand(1)->stripPointerCastsAndAliases());
+      Function *handle = dyn_cast_or_null<Function>(val_func);
+      // 3rd argument is the kernel name (on device side)
+      GlobalVariable *gv = dyn_cast_or_null<GlobalVariable>(callBase->getArgOperand(2)->stripPointerCastsAndAliases());
+      ConstantDataSequential *val_name = nullptr;
+      if (gv != nullptr) val_name = dyn_cast_or_null<ConstantDataSequential>(gv->getInitializer());
+
+      if (val_func != nullptr && val_name != nullptr) {
+        StringRef name = val_name->getAsString();
+        // Remove null byte at end
+        name = name.substr(0,name.size() - 1);
+        desc.push_back({handle, name});
+      }
+    }
+  }
+  return;
+}
+
 // Finds all functions which are being used to register a cuda kernel with the
 // cuda driver
 void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles) {
@@ -89,6 +116,16 @@ void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles) {
     CallBase *callBase = dyn_cast_or_null<CallBase>(user);
     if (callBase != nullptr) {
       Value *val = (callBase->getArgOperand(1)->stripPointerCastsAndAliases());
+      Value *kernel_name = (callBase->getArgOperand(2)->stripPointerCastsAndAliases());
+      kernel_name->dump();
+      GlobalVariable *const_str = dyn_cast_or_null<GlobalVariable>(kernel_name);
+      if (const_str != nullptr) {
+        const_str->getInitializer()->dump();
+        auto *val = dyn_cast_or_null<ConstantDataSequential>(const_str->getInitializer());
+        if (val != nullptr) errs() << val->getAsString() << "\n";
+      } else {
+        errs() << "no cast\n";
+      }
       // 2nd argument is the function pointer which acts as handle
       // strip all casts etc to get the function itself and not an intermediate
       // value

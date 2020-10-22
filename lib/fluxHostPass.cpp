@@ -114,9 +114,11 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   // Call modified kernel
 
   // Get Kernel Calls and Kernels
-  std::vector<std::pair<CallBase *, CallBase *>> kernelLaunch;
-  std::vector<Function *> handles;
-  mekong::getKernelHandles(M, handles);
+  // Kernel Descriptor:
+  // - handle
+  // - name
+  std::vector<mekong::KernelDescriptor> descs;
+  mekong::getKernelDescriptors(M, descs);
 
   // For Kernel Call
   //   Allocate memory for trace
@@ -126,15 +128,15 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
   //   Copy Data Back
   //   Write Log
   //   Free Memory
-  for (auto *handle : handles) {
+  for (auto &desc : descs) {
 
     // Get Name of the Kernel
-    std::string kernelName = handle->getName().str();
+    std::string kernelName = desc.name.str();
     std::string cloneName = kernelName + "_clone";
 
     // Add Parameters of original Kernel and add the Array for the BB Counters
     std::vector<Type *> cloneParamenter;
-    for (auto *type : handle->getFunctionType()->params())
+    for (auto *type : desc.handle->getFunctionType()->params())
       cloneParamenter.push_back(type);
     cloneParamenter.push_back(
         Type::getInt64PtrTy(ctx)); // Pointer to Counters for Basic Blocks
@@ -144,14 +146,14 @@ bool FluxHostPass::runOnModule(llvm::Module &M) {
 
     // Create Kernelclone wrapper
     FunctionType *cloneType = FunctionType::get(
-        handle->getFunctionType()->getReturnType(), cloneParamenter, false);
+        desc.handle->getFunctionType()->getReturnType(), cloneParamenter, false);
     Function *clonedKernelWrapper =
         mekong::createKernelWrapper(M, cloneName, cloneType);
 
     mekong::registerKernel(M, cloneName, clonedKernelWrapper);
 
     std::vector<CallBase *> launchSites;
-    mekong::getKernelLaunchSites(handle, launchSites);
+    mekong::getKernelLaunchSites(desc.handle, launchSites);
     for (auto *launch : launchSites) {
       CallBase *confCall = mekong::getKernelConfigCall(M, launch);
       builder.SetInsertPoint(confCall);

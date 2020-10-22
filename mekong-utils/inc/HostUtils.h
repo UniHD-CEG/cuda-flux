@@ -7,8 +7,16 @@
 
 namespace mekong {
 
+// Structs, Classes, Datatypes
+struct KernelDescriptor {
+  llvm::Function *handle;
+  llvm::StringRef name;
+};
+
+
 // Analysis Functions
 bool usesNewKernelLaunch(llvm::Module &m);
+void getKernelDescriptors(llvm::Module &m, std::vector<KernelDescriptor> &desc);
 void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles);
 void getKernelLaunchSites(llvm::Function *klFun,
                           std::vector<llvm::CallBase *> &callSites);
