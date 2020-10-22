@@ -101,39 +101,6 @@ void getKernelDescriptors(llvm::Module &m, std::vector<KernelDescriptor> &desc) 
   return;
 }
 
-// Finds all functions which are being used to register a cuda kernel with the
-// cuda driver
-void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles) {
-  Function *registerFunction = m.getFunction("__cudaRegisterFunction");
-  if (registerFunction == nullptr)
-    return;
-  for (auto *user : registerFunction->users()) {
-    CallBase *callBase = dyn_cast_or_null<CallBase>(user);
-    if (callBase != nullptr) {
-      Value *val = (callBase->getArgOperand(1)->stripPointerCastsAndAliases());
-      Value *kernel_name = (callBase->getArgOperand(2)->stripPointerCastsAndAliases());
-      kernel_name->dump();
-      GlobalVariable *const_str = dyn_cast_or_null<GlobalVariable>(kernel_name);
-      if (const_str != nullptr) {
-        const_str->getInitializer()->dump();
-        auto *val = dyn_cast_or_null<ConstantDataSequential>(const_str->getInitializer());
-        if (val != nullptr)
-          errs() << val->getAsString() << "\n";
-      } else {
-        errs() << "no cast\n";
-      }
-      // 2nd argument is the function pointer which acts as handle
-      // strip all casts etc to get the function itself and not an intermediate
-      // value
-      Function *handle = dyn_cast_or_null<Function>(val);
-      if (handle != nullptr) {
-        handles.push_back(handle);
-      }
-    }
-  }
-  return;
-}
-
 // Finds the instructions that call the kernel launch wrapper function (klFun)
 // in this function cudaLaunch or cudaLaunchKernel will be called
 // this function will not return the call sites if the wrapper function is

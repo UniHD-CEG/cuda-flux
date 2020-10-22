@@ -16,7 +16,6 @@ struct KernelDescriptor {
 // Analysis Functions
 bool usesNewKernelLaunch(llvm::Module &m);
 void getKernelDescriptors(llvm::Module &m, std::vector<KernelDescriptor> &desc);
-void getKernelHandles(llvm::Module &m, std::vector<llvm::Function *> &handles);
 void getKernelLaunchSites(llvm::Function *klFun, std::vector<llvm::CallBase *> &callSites);
 void getKernelArguments(llvm::CallBase *kernelLaunchSite, std::vector<llvm::Value *> &args);
 llvm::CallBase *getKernelConfigCall(llvm::Module &m, llvm::CallBase *kernelLaunchSite);
