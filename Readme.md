@@ -5,15 +5,15 @@ CUDA Flux is a profiler for GPU applications which reports the basic block execu
 # Dependencies
 
 * LLVM:  
-  CUDA Flux is tested and developed with llvm 10.0
+  CUDA Flux is tested and developed with llvm 11.0
 
   ```
-  git clone --branch llvmorg-10.0.0-rc2 https://github.com/llvm/llvm-project.git
+  git clone --branch release/11.x https://github.com/llvm/llvm-project.git
   ```
 
   CMake config:
   ```
-  cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=/opt/llvm-10.0 \
+  cmake -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_INSTALL_PREFIX=/opt/llvm-11.0 \
   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_ENABLE_DOXYGEN=OFF -DLLVM_BUILD_DOCS=OFF -GNinja \
   -DLLVM_INSTALL_BINUTILS_SYMLINKS=ON -DBUILD_SHARED_LIBS=ON \
