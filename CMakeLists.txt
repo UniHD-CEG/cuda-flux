@@ -13,10 +13,11 @@ add_subdirectory(mekong-utils)
 
 # Precompile host and device runtime and produce blob
 add_custom_command( OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h
-	COMMAND clang++  -S -emit-llvm --cuda-device-only --cuda-gpu-arch=sm_30 -O3 -std=c++11
-	${CMAKE_CURRENT_SOURCE_DIR}/lib/deviceRuntime.cu -o deviceRuntime.ll
-	COMMAND xxd -i deviceRuntime.ll > ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h
-	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/lib/deviceRuntime.cu )
+  #COMMAND clang++  -S -emit-llvm --cuda-device-only --cuda-gpu-arch=sm_30 -O3 -std=c++11
+  #${CMAKE_CURRENT_SOURCE_DIR}/lib/deviceRuntime.cu -o deviceRuntime.ll
+  COMMAND xxd -i deviceRuntime.cu > ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h
+	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/lib/deviceRuntime.cu
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib )
 add_custom_target( deviceRuntime DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/inc/deviceRuntime.h)
 
 add_custom_command( OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/inc/hostRuntime.h
@@ -52,14 +53,14 @@ endif(APPLE)
 
 # Testing
 add_test( NAME Saxpy
-        COMMAND clang++ --cuda-gpu-arch=sm_30 -std=c++11 -lcudart
+        COMMAND clang++ --cuda-gpu-arch=sm_35 -std=c++11 -lcudart
         -finline-functions
         -Xclang -load -Xclang ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so
         saxpy.cu
         -o saxpy 
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test )
 add_test( NAME BranchDivergence
-	COMMAND clang++ --cuda-gpu-arch=sm_30 -std=c++11 -lcudart
+	COMMAND clang++ --cuda-gpu-arch=sm_35 -std=c++11 -lcudart
 	-finline-functions
 	-Xclang -load -Xclang ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so
 	branchdivergence.cu
@@ -71,13 +72,6 @@ add_test(NAME run_saxpy COMMAND ./gpu_check_wrapper.sh ./saxpy
 add_test(NAME run_branch_divergence COMMAND ./gpu_check_wrapper.sh ./check_branch_div.py 2349243
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test )
 set_tests_properties(run_saxpy run_branch_divergence PROPERTIES SKIP_RETURN_CODE 77)
-# Regression tests
-add_test(NAME rodinia_hotspot 
-	COMMAND opt -load ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so -S --host-cuda-flux rodinia_hotspot_hostcode.bc
-	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/regression_test_ir)
-add_test(NAME rodinia_nn
-	COMMAND opt -load ${CMAKE_CURRENT_BINARY_DIR}/libcuda_flux_pass.so -S --host-cuda-flux rodinia_nn_hostcode.bc
-	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/regression_test_ir)
 
 enable_testing()
 

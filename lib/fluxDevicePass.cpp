@@ -190,12 +190,45 @@ bool FluxDevicePass::runOnModule(Module &M) {
   auto funcVec = ptxInstructionAnalysis(M);
 
   // Link Device Runtime //
-  // Load Memory Buffer from Headerfile
-  std::string deviceRuntimeNull((const char *)deviceRuntime_ll,
-                                deviceRuntime_ll_len);
-  // Add nulltermination
-  deviceRuntimeNull.append("\0");
-  StringRef deviceRuntime(deviceRuntimeNull.c_str(), deviceRuntimeNull.size());
+  // TODO
+  // device runtime needs to be compiled for the same gpu arch than the current file
+  // Steps:
+  // * print gpu arch
+  std::vector<Function *> kernels;
+  mekong::getKernels(M, kernels);
+  StringRef target_proc;
+  for (Function *kernel : kernels) {
+    target_proc = kernel->getFnAttribute("target-cpu").getValueAsString();
+    break; // assume all kernel have the same attributes
+  }
+
+  std::string rt_path = "/tmp/cuda_flux_deviceRuntime";
+
+  // * create source file in /tmp
+  std::error_code EC;
+  { // Seperate name space to prevent usage of file later in code
+    // also flushes input of file to disk - very important!
+    raw_fd_ostream file(rt_path + ".cu", EC, llvm::sys::fs::OpenFlags(1)); // OF_Text
+    assert(!EC);
+    file.write((const char*)deviceRuntime_cu, deviceRuntime_cu_len);
+    file.flush();
+  }
+  // * compile to byte code
+  std::string deviceRuntime_ll;
+  exec(std::string("clang++ -S -emit-llvm --cuda-device-only --cuda-gpu-arch=" + target_proc.str() + 
+        " -O3 -std=c++11 -o " + rt_path + ".ll " + rt_path + ".cu").c_str());
+  // * link byte code to current module
+  { // Seperate name space to prevent usage of file later in code
+    // TODO replace with llvm equivalent
+    std::ifstream file(rt_path + ".ll");
+    file.seekg (0, std::ios::end);
+    auto size = file.tellg();
+    deviceRuntime_ll = std::string(size, '\0');
+    file.seekg(0);
+    file.read(&deviceRuntime_ll[0], size);
+  }
+  StringRef deviceRuntime(deviceRuntime_ll);
+
   // Link against current module
   mekong::linkIR(deviceRuntime, M);
 
