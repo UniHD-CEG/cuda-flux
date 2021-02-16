@@ -21,7 +21,7 @@ CUDA Flux is a profiler for GPU applications which reports the basic block execu
   ```
 
 * re2c lexer generator - http://re2c.org/ (make sure to check your package manager first)
-* CUDA SDK >= 8.0  
+* CUDA SDK >= 9.0  
 * Python (python3 preferred) with the yaml package installed
 * environment-modules (optional, but recommended)
 
@@ -46,7 +46,7 @@ module load /opt/cuda-flux/module/cuda_flux # LLVM and CUDA need to be loaded fi
 Compile your CUDA application:
 
 ```
-clang_cf++ --cuda-gpu-arch=sm_30 -std=c++11 -lcudart test/saxpy.cu -o saxpy`
+clang_cf++ --cuda-gpu-arch=sm_35 -std=c++11 -lcudart test/saxpy.cu -o saxpy`
 ```
 
 Execute the binary like usual: `./saxpy`

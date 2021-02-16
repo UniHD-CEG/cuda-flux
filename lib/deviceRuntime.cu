@@ -50,7 +50,8 @@ extern "C" __device__ void incBlockCounter_mt(uint64_t *counters,
   asm volatile("mov.u32 %0, %%laneid;" : "=r"(lane_id));
 
   uint32_t active_threads = 0;
-  uint32_t active_bitvec = __ballot(1);
+  //uint32_t active_bitvec = __ballot(1);
+  uint32_t active_bitvec = __activemask();
   active_threads = __popc(active_bitvec);
   uint32_t first_active_thread = __ffs(active_bitvec) - 1;
 
