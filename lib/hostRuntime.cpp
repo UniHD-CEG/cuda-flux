@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
 #include <stdlib.h>
 #include <sys/time.h>
 
@@ -23,6 +24,12 @@ extern "C" uint64_t *__attribute__((weak)) createBBCounterMemory(size_t len) {
   uint64_t *d_ptr;
 
   CUDA_CHECK(cudaMalloc(&d_ptr, len * sizeof(uint64_t)));
+
+  if(d_ptr == nullptr) {
+    cerr << "Error allocating memory for basic block counters. Exiting...\n";
+    exit(-1);
+  }
+
 
   CUDA_CHECK(cudaMemset(d_ptr, 0, len * sizeof(uint64_t)));
 
