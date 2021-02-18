@@ -202,7 +202,9 @@ bool FluxDevicePass::runOnModule(Module &M) {
     break; // assume all kernel have the same attributes
   }
 
-  std::string rt_path = "/tmp/cuda_flux_deviceRuntime";
+  char tmp_file[] = "/tmp/cuda_flux_drtXXXXXX";
+  mkstemp(tmp_file);
+  std::string rt_path(tmp_file);
 
   // * create source file in /tmp
   std::error_code EC;
