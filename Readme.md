@@ -65,3 +65,5 @@ results in a line with the following information:
 The PTX instructions for all kernels are stored in the `PTX_Analysis.yml`
 file. The order of the Basic Blocks corresponds with the order of the 
 counters in the bbc.txt file.
+
+Profiling mode is controlled by the environment variable `MEKONG_PROFILINGMODE`. If is is not set or set to 0 all threads are profiled, which is the recommended setting. `export MEKONG_PROFILINGMODE=1` will only profile one CTA and `export MEKONG_PROFILINGMODE=2` will profile only one warp.
